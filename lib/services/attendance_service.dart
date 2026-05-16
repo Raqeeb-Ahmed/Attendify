@@ -29,6 +29,11 @@ class AttendanceService {
 
   Timer? _heartbeatTimer;
   Timer? _locationTimer;
+  Timer? _autoCheckoutTimer;
+
+  // Auto-checkout time: 6:00 PM
+  static const int autoCheckoutHour = 18; // 6 PM
+  static const int autoCheckoutMinute = 0;
 
   // ── Haversine Formula ──
   double getDistanceFromLatLonInM(double lat1, double lon1, double lat2, double lon2) {
@@ -351,6 +356,78 @@ class AttendanceService {
       presenceRef.set({'online': false, 'lastSeen': DateTime.now().toIso8601String()});
     } catch (e) {
       debugPrint("RTDB presence update failed: $e");
+    }
+  }
+
+  // ── Auto Checkout at 6 PM ──
+  /// Schedules a one-shot timer that fires at 6:00 PM today (or immediately
+  /// if already past 6 PM and session is still active).
+  void startAutoCheckoutTimer(String userId) {
+    _autoCheckoutTimer?.cancel();
+
+    final now = DateTime.now();
+    final todayCheckout = DateTime(now.year, now.month, now.day, autoCheckoutHour, autoCheckoutMinute);
+
+    // If already past 6 PM today, run immediately
+    final delay = todayCheckout.isAfter(now) ? todayCheckout.difference(now) : Duration.zero;
+
+    debugPrint('[AutoCheckout] Scheduled in ${delay.inMinutes} minutes');
+
+    _autoCheckoutTimer = Timer(delay, () => autoCheckout(userId));
+  }
+
+  void cancelAutoCheckoutTimer() {
+    _autoCheckoutTimer?.cancel();
+    _autoCheckoutTimer = null;
+  }
+
+  /// Performs checkout at 6 PM, calculates overtime beyond 5:45 PM.
+  Future<void> autoCheckout(String userId) async {
+    try {
+      final attendanceId = getTodayAttendanceId(userId);
+      final docRef = _db.collection('attendance').doc(attendanceId);
+      final docSnap = await docRef.get();
+
+      if (!docSnap.exists) return;
+      final attData = docSnap.data()!;
+      if (attData['checkOutTime'] != null) return; // Already checked out
+
+      final now = DateTime.now();
+      final nowIso = now.toIso8601String();
+      final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
+      final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
+
+      // Calculate overtime: minutes worked after 5:45 PM
+      final checkoutMins = now.hour * 60 + now.minute;
+      final overtimeMins = (checkoutMins > officeEndMinutes)
+          ? checkoutMins - officeEndMinutes
+          : 0;
+
+      await docRef.update({
+        'checkOutTime': nowIso,
+        'lastActive': nowIso,
+        'sessionStatus': 'auto-checkout',
+        'totalHours': totalHours,
+        'insideOfficeTime': insideOfficeMs,
+        'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
+      });
+
+      // Mark presence offline
+      try {
+        final presenceRef = _rtdb.ref('presence/$userId');
+        await presenceRef.set({'online': false, 'lastSeen': nowIso});
+      } catch (e) {
+        debugPrint("RTDB presence update failed: $e");
+      }
+
+      // Stop heartbeat and location tracking
+      stopHeartbeat(userId);
+      stopLocationTracking();
+      cancelAutoCheckoutTimer();
+
+      debugPrint('[AutoCheckout] User $userId auto-checked out at $nowIso');
+    } catch (e) {
+      debugPrint('[AutoCheckout] Error: $e');
     }
   }
 

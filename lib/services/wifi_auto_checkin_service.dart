@@ -223,9 +223,10 @@ class WiFiAutoCheckInService {
 
         debugPrint('[WiFiAutoCheckInService] ✅ WiFi auto check-in successful!');
 
-        // Start background tracking
+        // Start background tracking + auto-checkout timer
         _attendanceService.startHeartbeat(_currentUid!);
         _attendanceService.startLocationTracking(_currentUid!);
+        _attendanceService.startAutoCheckoutTimer(_currentUid!);
       }
     } catch (e) {
       debugPrint('[WiFiAutoCheckInService] ❌ WiFi auto check-in failed: $e');

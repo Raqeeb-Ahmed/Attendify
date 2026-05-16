@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../services/auth_service.dart';
 
 class EmployeeSidebar extends StatelessWidget {
   final int selectedIndex;
@@ -97,13 +96,6 @@ class EmployeeSidebar extends StatelessWidget {
                       Text('Employee', style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
                     ],
                   ),
-                ),
-                InkWell(
-                  onTap: () async {
-                    await AuthService().signOut();
-                    // AuthWrapper auto-redirects to login when auth state changes
-                  },
-                  child: Icon(Icons.logout_outlined, size: 22, color: Colors.grey.shade600),
                 ),
               ],
             ),

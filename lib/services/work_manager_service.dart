@@ -207,7 +207,53 @@ Future<void> _updateTimeTrackingForExistingSession(
     if (!attDoc.exists) return;
 
     final attData = attDoc.data()!;
-    if (attData['checkOutTime'] != null || attData['sessionStatus'] != 'active') return;
+    final alreadyCheckedOut = attData['checkOutTime'] != null;
+    final isAutoCheckout = attData['sessionStatus'] == 'auto-checkout';
+
+    // ── Auto-checkout at 6:00 PM ────────────────────────────────────────────
+    final autoCheckoutTime = DateTime(now.year, now.month, now.day, 18, 0);
+    if (!alreadyCheckedOut && now.isAfter(autoCheckoutTime)) {
+      final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
+      final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
+      const officeEndMins = 17 * 60 + 45;
+      final nowMins = now.hour * 60 + now.minute;
+      final overtimeMins = nowMins > officeEndMins ? nowMins - officeEndMins : 0;
+
+      await attRef.update({
+        'checkOutTime': nowIso,
+        'lastActive': nowIso,
+        'sessionStatus': 'auto-checkout',
+        'totalHours': totalHours,
+        'insideOfficeTime': insideOfficeMs,
+        'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
+      });
+      debugPrint('[WorkManager] Auto-checkout done. Overtime: ${overtimeMins}m');
+      return;
+    }
+
+    // ── Post-checkout overtime: user still at office after 6 PM ────────────
+    if (isAutoCheckout && alreadyCheckedOut && isInside) {
+      final lastOvertimeActive = attData['lastOvertimeActive'] as String?;
+      if (lastOvertimeActive != null) {
+        final lastDate = DateTime.parse(lastOvertimeActive);
+        final diffMins = now.difference(lastDate).inMinutes;
+        if (diffMins > 0 && diffMins < 30) {
+          await attRef.update({
+            'extraHours': (attData['extraHours'] ?? 0) + diffMins,
+            'lastOvertimeActive': nowIso,
+          });
+          debugPrint('[WorkManager] Added ${diffMins}m overtime (user still at office)');
+        } else {
+          await attRef.update({'lastOvertimeActive': nowIso});
+        }
+      } else {
+        await attRef.update({'lastOvertimeActive': nowIso});
+      }
+      return;
+    }
+
+    // ── Normal in-session time tracking ────────────────────────────────────
+    if (alreadyCheckedOut) return;
 
     final updates = <String, dynamic>{};
     final lastActive = attData['lastActive'];
@@ -216,15 +262,29 @@ Future<void> _updateTimeTrackingForExistingSession(
       final lastDate = DateTime.parse(lastActive);
       final diffMins = now.difference(lastDate).inMinutes;
 
-      // WorkManager runs every 15 min, so diffMins will typically be ~15
-      // Track this as offline time since we don't know where user was during this gap
-      if (diffMins >= 15) {
+      const officeStartMins = 9 * 60 + 45;
+      const officeEndMins = 17 * 60 + 45;
+      final currentMins = now.hour * 60 + now.minute;
+
+      if (diffMins > 0 && diffMins < 30) {
+        if (currentMins > officeEndMins) {
+          updates['extraHours'] = (attData['extraHours'] ?? 0) + diffMins;
+        } else if (currentMins >= officeStartMins) {
+          if (isInside) {
+            updates['insideTime'] = (attData['insideTime'] ?? 0) + diffMins;
+          } else {
+            updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
+          }
+        } else {
+          updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
+        }
+        debugPrint('[WorkManager] Added $diffMins mins to time tracking');
+      } else if (diffMins >= 30) {
         updates['offlineTime'] = (attData['offlineTime'] ?? 0) + diffMins;
-        debugPrint('[WorkManager] Added $diffMins mins as offline time (app was killed)');
+        debugPrint('[WorkManager] Added $diffMins mins as offline time');
       }
     }
 
-    // Update current status and lastActive
     updates['currentStatus'] = isInside ? 'present' : 'outside';
     updates['atOffice'] = isInside;
     updates['lastLocationUpdate'] = nowIso;

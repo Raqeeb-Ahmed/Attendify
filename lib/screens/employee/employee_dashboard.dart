@@ -38,7 +38,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
   final user = FirebaseAuth.instance.currentUser;
 
   int _selectedNavIndex = 0;
-  bool _isLoading = false;
   Map<String, dynamic>? _todayData;
   double? _currentLat;
   double? _distanceFromOffice;
@@ -73,6 +72,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     if (user != null) {
       _attendanceService.stopHeartbeat(user!.uid);
       _attendanceService.stopLocationTracking();
+      _attendanceService.cancelAutoCheckoutTimer();
     }
     // Note: ForegroundTrackingService keeps running after dispose (by design)
     super.dispose();
@@ -157,6 +157,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
       if (data != null && data['checkOutTime'] == null && data['sessionStatus'] == 'active') {
         _attendanceService.startHeartbeat(user!.uid);
         _attendanceService.startLocationTracking(user!.uid);
+        _attendanceService.startAutoCheckoutTimer(user!.uid);
       }
       if (mounted) setState(() => _todayData = data);
 
@@ -218,75 +219,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     return R * 2 * (a < 1 ? a : 1);
   }
 
-  Future<void> _handleCheckIn() async {
-    if (user == null) return;
-    setState(() => _isLoading = true);
-    try {
-      // Get user department from Firestore
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
-      final department = userDoc.data()?['department'];
-
-      final result = await _attendanceService.checkIn(
-        user!.uid,
-        user!.displayName ?? 'Unknown',
-        department,
-        user!.email ?? '',
-      );
-
-      if (result != null) {
-        _attendanceService.startHeartbeat(user!.uid);
-        _attendanceService.startLocationTracking(user!.uid);
-
-        // Start persistent foreground service (survives app close)
-        final userDoc2 = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
-        final dept = userDoc2.data()?['department'] as String?;
-        await ForegroundTrackingService.start(
-          uid: user!.uid,
-          name: user!.displayName ?? 'Unknown',
-          email: user!.email ?? '',
-          department: dept,
-        );
-
-        final location = result['location'] as Map<String, dynamic>?;
-        if (location != null) {
-          setState(() {
-            _currentLat = location['lat'];
-          });
-        }
-
-        await _loadTodayData();
-
-        // Show status message
-        if (mounted) {
-          final status = result['status'] as String;
-          final atOffice = result['atOffice'] as bool;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Checked in with status: ${status.toUpperCase()}${!atOffice ? " (Outside office)" : ""}'),
-              backgroundColor: status == 'present' ? const Color(0xFF22C55E) : const Color(0xFFF97316),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(getFirebaseErrorMessage(e)),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
   /// Show dialog prompting user to enable precise location
   void _showApproximateLocationDialog() {
     showDialog(
@@ -340,29 +272,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
         ],
       ),
     );
-  }
-
-  Future<void> _handleCheckOut() async {
-    if (user == null) return;
-    setState(() => _isLoading = true);
-    try {
-      _attendanceService.stopHeartbeat(user!.uid);
-      _attendanceService.stopLocationTracking();
-
-      // Stop the foreground service on check-out
-      await ForegroundTrackingService.stop();
-
-      await _attendanceService.checkOut(user!.uid);
-      await _loadTodayData();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(getFirebaseErrorMessage(e)), backgroundColor: const Color(0xFFEF4444)),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
   }
 
   // Helper to format minutes into display string
@@ -574,12 +483,40 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
               },
             ),
           const SizedBox(width: 4),
-          if (_isLoading)
-            const SizedBox(width: 36, height: 36, child: CircularProgressIndicator(strokeWidth: 3, color: Color(0xFF6366F1)))
-          else if (!isCheckedIn)
-            _actionButton('Check In', Icons.login, const Color(0xFF22C55E), _handleCheckIn, isMobile)
+          if (!isCheckedIn)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFDBA74), width: 1.5),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.wifi_rounded, size: 16, color: Color(0xFFEA580C)),
+                  SizedBox(width: 6),
+                  Text('Auto check-in on WiFi', style: TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.w600, fontSize: 13)),
+                ],
+              ),
+            )
           else if (!isCheckedOut)
-            _actionButton('Check Out', Icons.logout, const Color(0xFFEF4444), _handleCheckOut, isMobile)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF16A34A)),
+                  SizedBox(width: 6),
+                  Text('Auto checkout 6 PM', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 13)),
+                ],
+              ),
+            )
           else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -588,32 +525,16 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.check_circle, size: 16, color: Color(0xFF16A34A)),
-                  const SizedBox(width: 6),
-                  const Text('Completed', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 13)),
+                  Icon(Icons.check_circle, size: 16, color: Color(0xFF16A34A)),
+                  SizedBox(width: 6),
+                  Text('Completed', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 13)),
                 ],
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _actionButton(String label, IconData icon, Color color, VoidCallback onTap, bool isMobile) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        shadowColor: color.withValues(alpha: 0.3),
-        padding: EdgeInsets.symmetric(horizontal: isMobile ? 18 : 24, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

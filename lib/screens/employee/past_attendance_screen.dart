@@ -137,8 +137,9 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         elevation: 0,
         shadowColor: Colors.black.withValues(alpha: 0.04),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+          icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
+          tooltip: 'Menu',
         ),
         title: const Text(
           'Past Attendance',
@@ -420,28 +421,22 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
 
   Widget _buildSummaryCard(String label, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 8),
+          Icon(icon, color: color, size: 16),
+          const SizedBox(height: 2),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
               color: Color(0xFF1E293B),
             ),
@@ -449,9 +444,10 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
           Text(
             label,
             style: const TextStyle(
-              fontSize: 10,
+              fontSize: 9,
               color: Color(0xFF94A3B8),
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

@@ -70,17 +70,20 @@ class _LocationMonitorScreenState extends State<LocationMonitorScreen> {
               icon: const Icon(Icons.menu_rounded),
               onPressed: onMenuPressed,
             ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Location Monitor',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-              const SizedBox(height: 2),
-              Text('Live employee geofence status · ${DateFormat('EEEE, d MMM').format(DateTime.now())}',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Location Monitor',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                const SizedBox(height: 2),
+                Text('Live employee geofence status · ${DateFormat('EEEE, d MMM').format(DateTime.now())}',
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(

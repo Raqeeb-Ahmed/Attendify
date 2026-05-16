@@ -98,16 +98,12 @@ class EmployeeSidebar extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(Icons.notifications_none, size: 16, color: Colors.grey.shade500),
-                const SizedBox(width: 6),
-                Icon(Icons.settings_outlined, size: 16, color: Colors.grey.shade500),
-                const SizedBox(width: 6),
                 InkWell(
                   onTap: () async {
                     await AuthService().signOut();
                     // AuthWrapper auto-redirects to login when auth state changes
                   },
-                  child: Icon(Icons.logout_outlined, size: 16, color: Colors.grey.shade500),
+                  child: Icon(Icons.logout_outlined, size: 22, color: Colors.grey.shade600),
                 ),
               ],
             ),

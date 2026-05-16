@@ -148,6 +148,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                               const SizedBox(height: 8),
                               DropdownButtonFormField<String>(
                                 initialValue: _selectedCategory,
+                                isExpanded: true,
                                 decoration: InputDecoration(
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -376,8 +377,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+          icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
+          tooltip: 'Menu',
         ),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,

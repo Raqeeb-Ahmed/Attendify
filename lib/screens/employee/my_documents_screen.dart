@@ -196,8 +196,9 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+          icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
+          tooltip: 'Menu',
         ),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -495,8 +495,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         elevation: 0,
         shadowColor: Colors.black.withValues(alpha: 0.04),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+          icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
+          tooltip: 'Menu',
         ),
         title: const Text(
           'Leave Management',

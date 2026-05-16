@@ -1,0 +1,56 @@
+{
+  "project_info": {
+    "project_number": "477847847076",
+    "firebase_url": "https://osattdaneceportal-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "osattdaneceportal",
+    "storage_bucket": "osattdaneceportal.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:477847847076:android:0b871992aa20634bace631",
+        "android_client_info": {
+          "package_name": "com.attendo.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "477847847076-jhe20v7vb3iguhq1oggv105ear72aksn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attendo.app",
+            "certificate_hash": "5a5604f2b1498dbab2179bc2d45df27e7fc895f7"
+          }
+        },
+        {
+          "client_id": "477847847076-kks8bi19jrgejhqgft049boieha2pbja.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attendo.app",
+            "certificate_hash": "00339b1014cb95371cf54e39ac990af1f09bd906"
+          }
+        },
+        {
+          "client_id": "477847847076-02hr552ar5snhost8f3fslv0bp23q13a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwVvMoi2qDaayKUDUs3WxhfTp9SNCTvnQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "477847847076-02hr552ar5snhost8f3fslv0bp23q13a.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

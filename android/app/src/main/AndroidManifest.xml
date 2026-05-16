@@ -97,16 +97,6 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false" />
 
-        <!-- WiFi State Change Receiver for Auto Check-in -->
-        <receiver
-            android:name="dev.fluttercommunity.plus.connectivity.ConnectivityBroadcastReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.net.wifi.STATE_CHANGE" />
-                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
-            </intent-filter>
-        </receiver>
-
         <!-- WorkManager: reschedule tasks on reboot -->
         <receiver
             android:name="androidx.work.impl.background.systemalarm.RescheduleReceiver"

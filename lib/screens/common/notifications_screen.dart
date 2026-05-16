@@ -5,7 +5,8 @@ import 'package:intl/intl.dart';
 import '../../services/notification_service.dart';
 
 class NotificationsScreen extends StatelessWidget {
-  const NotificationsScreen({super.key});
+  final VoidCallback? onBack;
+  const NotificationsScreen({super.key, this.onBack});
 
   static const Map<String, Map<String, dynamic>> _typeConfig = {
     'leave': {'icon': Icons.beach_access_rounded, 'color': Color(0xFF06B6D4), 'bg': Color(0xFFECFEFF)},
@@ -39,7 +40,7 @@ class NotificationsScreen extends StatelessWidget {
                 stream: notifService.getNotifications(user.uid),
                 builder: (ctx, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)));
+                    return _buildSkeleton();
                   }
                   final docs = snap.data?.docs ?? [];
                   if (docs.isEmpty) {
@@ -71,14 +72,21 @@ class NotificationsScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (Navigator.of(context).canPop())
+          if (onBack != null)
+            IconButton(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF1E293B)),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            )
+          else if (Navigator.of(context).canPop())
             IconButton(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF1E293B)),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
-          if (Navigator.of(context).canPop()) const SizedBox(width: 12),
+          if (onBack != null || Navigator.of(context).canPop()) const SizedBox(width: 12),
           const Icon(Icons.notifications_rounded, color: Color(0xFF6366F1), size: 22),
           const SizedBox(width: 10),
           const Expanded(
@@ -194,6 +202,14 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildSkeleton() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: 6,
+      itemBuilder: (context, i) => _SkeletonCard(),
+    );
+  }
+
   Widget _buildEmpty() {
     return Center(
       child: Column(
@@ -229,5 +245,81 @@ class NotificationsScreen extends StatelessWidget {
     } catch (_) {
       return '';
     }
+  }
+}
+
+class _SkeletonCard extends StatefulWidget {
+  @override
+  State<_SkeletonCard> createState() => _SkeletonCardState();
+}
+
+class _SkeletonCardState extends State<_SkeletonCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.4, end: 0.9).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, child) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFF1F5F9)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _box(40, 40, radius: 10, opacity: _anim.value),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _box(16, double.infinity, opacity: _anim.value),
+                  const SizedBox(height: 8),
+                  _box(12, 200, opacity: _anim.value * 0.7),
+                  const SizedBox(height: 6),
+                  _box(10, 80, opacity: _anim.value * 0.5),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _box(double height, double width, {double radius = 6, required double opacity}) {
+    return Container(
+      height: height,
+      width: width == double.infinity ? null : width,
+      decoration: BoxDecoration(
+        color: Color.fromRGBO(203, 213, 225, opacity),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
   }
 }

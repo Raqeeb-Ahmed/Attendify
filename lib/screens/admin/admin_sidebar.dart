@@ -38,8 +38,8 @@ class AdminSidebar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                   child: Image.asset(
                     'assets/images/app_icon/icon.png',
-                    width: 38,
-                    height: 38,
+                    width: 46,
+                    height: 46,
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -108,9 +108,6 @@ class AdminSidebar extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(Icons.notifications_none, size: 18, color: Colors.grey.shade500),
-                const SizedBox(width: 8),
-                Icon(Icons.settings_outlined, size: 18, color: Colors.grey.shade500),
                 const SizedBox(width: 8),
                 InkWell(
                   onTap: () async {

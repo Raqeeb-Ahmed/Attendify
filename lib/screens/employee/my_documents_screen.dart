@@ -364,7 +364,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                         ],
                         const SizedBox(height: 8),
                         Text(
-                          'Core Flow HCM • Official Document',
+                          'Attendify • Official Document',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,

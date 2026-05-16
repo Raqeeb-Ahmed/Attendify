@@ -31,23 +31,21 @@ class AdminSidebar extends StatelessWidget {
         children: [
           // Logo area
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             child: Row(
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'assets/images/app_icon/icon.png',
+                    width: 38,
+                    height: 38,
+                    fit: BoxFit.cover,
                   ),
-                  child: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 12),
                 const Text(
-                  'Core Flow HCM',
+                  'Attendify',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,

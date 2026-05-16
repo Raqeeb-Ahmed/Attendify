@@ -118,7 +118,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Core Flow HCM',
+                              'Attendify',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,

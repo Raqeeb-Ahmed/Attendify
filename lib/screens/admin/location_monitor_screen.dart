@@ -606,8 +606,14 @@ class _ExpandedPanel extends StatelessWidget {
     // Get latest location for centering the map
     final latestDoc = sortedDocs.isNotEmpty ? sortedDocs.last : null;
     final latestData = latestDoc?.data() as Map<String, dynamic>?;
-    final userLat = latestData?['lat'] as double?;
-    final userLng = latestData?['lng'] as double?;
+    var userLat = latestData?['lat'] as double?;
+    var userLng = latestData?['lng'] as double?;
+
+    // Validate coordinates are valid numbers
+    if (userLat == null || userLng == null || userLat.isNaN || userLng.isNaN) {
+      userLat = null;
+      userLng = null;
+    }
 
     // Use office as default center if no user location
     final centerLat = userLat ?? AppConfig.officeLat;
@@ -617,43 +623,53 @@ class _ExpandedPanel extends StatelessWidget {
     final trailPoints = <LatLng>[];
     final trailColors = <Color>[];
 
-    // Build markers from location history
-    final markers = <Marker>[];
+    // Build circles - no markers, so no drift possible
+    final userCircles = <CircleMarker>[];
 
-    // Add user location markers and build trail
     for (int i = 0; i < sortedDocs.length; i++) {
       final data = sortedDocs[i].data() as Map<String, dynamic>;
       final lat = data['lat'] as double?;
       final lng = data['lng'] as double?;
       final inside = data['insideRadius'] as bool? ?? false;
-      final ts = data['timestamp'] as String?;
 
-      if (lat == null || lng == null) continue;
+      if (lat == null || lng == null || lat.isNaN || lng.isNaN) continue;
 
       final point = LatLng(lat, lng);
       trailPoints.add(point);
       trailColors.add(inside ? const Color(0xFF22C55E) : const Color(0xFFF97316));
 
-      // Show only latest 15 positions as markers to avoid clutter
-      if (sortedDocs.length > 15 && i < sortedDocs.length - 15) continue;
-
       final isLatest = i == sortedDocs.length - 1;
-      final timeStr = ts != null ? _fmtTime(ts) : '';
 
-      markers.add(
-        Marker(
+      if (isLatest) {
+        // Big circle for current position - outer ring
+        userCircles.add(CircleMarker(
           point: point,
-          width: isLatest ? 70 : 50,
-          height: isLatest ? 85 : 60,
-          alignment: Alignment.bottomCenter,
-          child: _LocationPin(
-            isInside: inside,
-            isLatest: isLatest,
-            timestamp: timeStr,
-            index: i + 1,
-          ),
-        ),
-      );
+          radius: 14,
+          color: (inside ? const Color(0xFF22C55E) : const Color(0xFFF97316)).withValues(alpha: 0.25),
+          borderColor: inside ? const Color(0xFF22C55E) : const Color(0xFFF97316),
+          borderStrokeWidth: 3,
+          useRadiusInMeter: false,
+        ));
+        // Inner filled dot
+        userCircles.add(CircleMarker(
+          point: point,
+          radius: 7,
+          color: inside ? const Color(0xFF22C55E) : const Color(0xFFF97316),
+          borderColor: Colors.white,
+          borderStrokeWidth: 2,
+          useRadiusInMeter: false,
+        ));
+      } else if (i % 3 == 0) {
+        // Small trail dot every 3rd point
+        userCircles.add(CircleMarker(
+          point: point,
+          radius: 4,
+          color: (inside ? const Color(0xFF22C55E) : const Color(0xFFF97316)).withValues(alpha: 0.7),
+          borderColor: Colors.white,
+          borderStrokeWidth: 1.5,
+          useRadiusInMeter: false,
+        ));
+      }
     }
 
     // Build polylines from trail points
@@ -670,6 +686,14 @@ class _ExpandedPanel extends StatelessWidget {
       }
     }
 
+    // Latest location time for overlay chip
+    final latestTs = (sortedDocs.isNotEmpty
+        ? (sortedDocs.last.data() as Map<String, dynamic>)['timestamp'] as String?
+        : null);
+    final latestTimeStr = latestTs != null ? _fmtTime(latestTs) : '';
+    final latestInside = sortedDocs.isNotEmpty
+        ? ((sortedDocs.last.data() as Map<String, dynamic>)['insideRadius'] as bool? ?? false)
+        : false;
     final hasUserLocations = sortedDocs.isNotEmpty;
 
     return Container(
@@ -706,10 +730,45 @@ class _ExpandedPanel extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Markers
-                MarkerLayer(markers: markers),
+                // User position circles - never drift unlike markers
+                CircleLayer(circles: userCircles),
               ],
             ),
+            // Fixed timestamp overlay - always top-left, never drifts
+            if (hasUserLocations && latestTimeStr.isNotEmpty)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: latestInside ? const Color(0xFF22C55E) : const Color(0xFFF97316),
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.access_time_rounded, color: Colors.white, size: 12),
+                      const SizedBox(width: 4),
+                      Text(
+                        'NOW  $latestTimeStr',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             // No locations message overlay
             if (!hasUserLocations)
               Container(
@@ -812,6 +871,11 @@ class _ExpandedPanel extends StatelessWidget {
 
     final List<LatLng> circlePoints = [];
 
+    // Validate inputs to prevent NaN
+    if (lat.isNaN || lng.isNaN || radiusInMeters.isNaN || radiusInMeters <= 0) {
+      return [LatLng(lat, lng)]; // Return center point as fallback
+    }
+
     // Convert radius to radians
     final double radDist = radiusInMeters / earthRadius;
     final double radLat = lat * 3.14159265359 / 180;
@@ -836,7 +900,10 @@ class _ExpandedPanel extends StatelessWidget {
       final double newLat = newRadLat * 180 / 3.14159265359;
       final double newLng = newRadLng * 180 / 3.14159265359;
 
-      circlePoints.add(LatLng(newLat, newLng));
+      // Skip invalid points
+      if (!newLat.isNaN && !newLng.isNaN) {
+        circlePoints.add(LatLng(newLat, newLng));
+      }
     }
 
     return circlePoints;
@@ -933,103 +1000,3 @@ class _TimelineRow extends StatelessWidget {
   }
 }
 
-// Location pin widget with timestamp
-class _LocationPin extends StatelessWidget {
-  final bool isInside;
-  final bool isLatest;
-  final String timestamp;
-  final int index;
-
-  const _LocationPin({
-    required this.isInside,
-    required this.isLatest,
-    required this.timestamp,
-    required this.index,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isInside ? const Color(0xFF22C55E) : const Color(0xFFF97316);
-
-    return SizedBox(
-      width: isLatest ? 70 : 50,
-      height: isLatest ? 85 : 60,
-      child: Column(
-        mainAxisSize: MainAxisSize.max,
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Timestamp label above pin
-          if (timestamp.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: isLatest ? color : Colors.white,
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Text(
-                isLatest ? 'NOW $timestamp' : timestamp,
-                style: TextStyle(
-                  fontSize: isLatest ? 12 : 10,
-                  fontWeight: FontWeight.w700,
-                  color: isLatest ? Colors.white : color,
-                ),
-              ),
-            ),
-          if (timestamp.isNotEmpty) const SizedBox(height: 4),
-          // Pin body
-          Container(
-            width: isLatest ? 40 : 24,
-            height: isLatest ? 40 : 24,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.5),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Center(
-              child: isLatest
-                  ? const Icon(Icons.person_pin_circle, color: Colors.white, size: 22)
-                  : Text(
-                      '$index',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
-          ),
-          // Pin pointer
-          Container(
-            width: 2,
-            height: isLatest ? 10 : 6,
-            color: color,
-          ),
-          // Dot at bottom (anchor point)
-          Container(
-            width: isLatest ? 8 : 6,
-            height: isLatest ? 8 : 6,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 1),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

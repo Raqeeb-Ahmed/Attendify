@@ -1,6 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import '../../utils/app_config.dart';
 
 class LocationMonitorScreen extends StatefulWidget {
   final bool isMobile;
@@ -499,6 +504,13 @@ class _ExpandedPanel extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
+                  // ── Location Map ──
+                  const Text('LOCATION MAP',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8), letterSpacing: 1)),
+                  const SizedBox(height: 10),
+                  _buildLocationMap(todayDocs),
+                  const SizedBox(height: 12),
+
                   // ── Check-in/out summary ──
                   if (checkIn != null) ...[
                     _summaryRow(Icons.login_rounded, 'Checked in', _fmt(checkIn), const Color(0xFF22C55E)),
@@ -582,6 +594,154 @@ class _ExpandedPanel extends StatelessWidget {
     );
   }
 
+  Widget _buildLocationMap(List<QueryDocumentSnapshot> docs) {
+    // Sort docs by timestamp to ensure correct trail order
+    final sortedDocs = docs.toList()
+      ..sort((a, b) {
+        final tsA = (a.data() as Map<String, dynamic>)['timestamp'] as String? ?? '';
+        final tsB = (b.data() as Map<String, dynamic>)['timestamp'] as String? ?? '';
+        return tsA.compareTo(tsB);
+      });
+
+    // Get latest location for centering the map
+    final latestDoc = sortedDocs.isNotEmpty ? sortedDocs.last : null;
+    final latestData = latestDoc?.data() as Map<String, dynamic>?;
+    final userLat = latestData?['lat'] as double?;
+    final userLng = latestData?['lng'] as double?;
+
+    // Use office as default center if no user location
+    final centerLat = userLat ?? AppConfig.officeLat;
+    final centerLng = userLng ?? AppConfig.officeLng;
+
+    // Build trail points (polyline)
+    final trailPoints = <LatLng>[];
+    final trailColors = <Color>[];
+
+    // Build markers from location history
+    final markers = <Marker>[];
+
+    // Add user location markers and build trail
+    for (int i = 0; i < sortedDocs.length; i++) {
+      final data = sortedDocs[i].data() as Map<String, dynamic>;
+      final lat = data['lat'] as double?;
+      final lng = data['lng'] as double?;
+      final inside = data['insideRadius'] as bool? ?? false;
+      final ts = data['timestamp'] as String?;
+
+      if (lat == null || lng == null) continue;
+
+      final point = LatLng(lat, lng);
+      trailPoints.add(point);
+      trailColors.add(inside ? const Color(0xFF22C55E) : const Color(0xFFF97316));
+
+      // Show only latest 15 positions as markers to avoid clutter
+      if (sortedDocs.length > 15 && i < sortedDocs.length - 15) continue;
+
+      final isLatest = i == sortedDocs.length - 1;
+      final timeStr = ts != null ? _fmtTime(ts) : '';
+
+      markers.add(
+        Marker(
+          point: point,
+          width: isLatest ? 70 : 50,
+          height: isLatest ? 85 : 60,
+          alignment: Alignment.bottomCenter,
+          child: _LocationPin(
+            isInside: inside,
+            isLatest: isLatest,
+            timestamp: timeStr,
+            index: i + 1,
+          ),
+        ),
+      );
+    }
+
+    // Build polylines from trail points
+    final polylines = <Polyline>[];
+    if (trailPoints.length > 1) {
+      for (int i = 0; i < trailPoints.length - 1; i++) {
+        polylines.add(
+          Polyline(
+            points: [trailPoints[i], trailPoints[i + 1]],
+            color: trailColors[i].withValues(alpha: 0.6),
+            strokeWidth: 3,
+          ),
+        );
+      }
+    }
+
+    final hasUserLocations = sortedDocs.isNotEmpty;
+
+    return Container(
+      height: 240,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            FlutterMap(
+              options: MapOptions(
+                initialCenter: LatLng(centerLat, centerLng),
+                initialZoom: 15,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.example.attendance',
+                ),
+                // Trail polyline
+                if (polylines.isNotEmpty)
+                  PolylineLayer(polylines: polylines),
+                // Circle showing office radius (100m) - using polygon for proper geographic scaling
+                PolygonLayer(
+                  polygons: [
+                    Polygon(
+                      points: _createGeofenceCircle(AppConfig.officeLat, AppConfig.officeLng, 100),
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.1),
+                      borderColor: const Color(0xFF22C55E),
+                      borderStrokeWidth: 2,
+                    ),
+                  ],
+                ),
+                // Markers
+                MarkerLayer(markers: markers),
+              ],
+            ),
+            // No locations message overlay
+            if (!hasUserLocations)
+              Container(
+                color: Colors.white.withValues(alpha: 0.9),
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.location_off_rounded, size: 32, color: Color(0xFF94A3B8)),
+                      SizedBox(height: 8),
+                      Text(
+                        'No location data for today',
+                        style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmtTime(String iso) {
+    try {
+      return DateFormat('hh:mm a').format(DateTime.parse(iso).toLocal());
+    } catch (_) {
+      return '';
+    }
+  }
+
   List<_Segment> _buildSegments(List<QueryDocumentSnapshot> docs) {
     final segments = <_Segment>[];
     if (docs.isEmpty) return segments;
@@ -642,6 +802,44 @@ class _ExpandedPanel extends StatelessWidget {
       if (diff.inHours < 24) return DateFormat('hh:mm a').format(t);
       return DateFormat('d MMM').format(t);
     } catch (_) { return '—'; }
+  }
+
+  // Create a circle polygon with geographic coordinates (radius in meters)
+  List<LatLng> _createGeofenceCircle(double lat, double lng, double radiusInMeters) {
+    const int points = 64; // Number of points to form the circle
+    const double pi2 = 3.14159265359 * 2;
+    const double earthRadius = 6371000; // Earth's radius in meters
+
+    final List<LatLng> circlePoints = [];
+
+    // Convert radius to radians
+    final double radDist = radiusInMeters / earthRadius;
+    final double radLat = lat * 3.14159265359 / 180;
+    final double radLng = lng * 3.14159265359 / 180;
+
+    for (int i = 0; i < points; i++) {
+      final double angle = (i / points) * pi2;
+
+      // Calculate new latitude
+      final double newRadLat = math.asin(
+        math.sin(radLat) * math.cos(radDist) +
+        math.cos(radLat) * math.sin(radDist) * math.cos(angle),
+      );
+
+      // Calculate new longitude
+      final double newRadLng = radLng + math.atan2(
+        math.sin(angle) * math.sin(radDist) * math.cos(radLat),
+        math.cos(radDist) - math.sin(radLat) * math.sin(newRadLat),
+      );
+
+      // Convert back to degrees
+      final double newLat = newRadLat * 180 / 3.14159265359;
+      final double newLng = newRadLng * 180 / 3.14159265359;
+
+      circlePoints.add(LatLng(newLat, newLng));
+    }
+
+    return circlePoints;
   }
 }
 
@@ -732,5 +930,106 @@ class _TimelineRow extends StatelessWidget {
     if (h > 0) { return '${h}h ${m}m'; }
     if (m > 0) { return '${m}m'; }
     return '<1m';
+  }
+}
+
+// Location pin widget with timestamp
+class _LocationPin extends StatelessWidget {
+  final bool isInside;
+  final bool isLatest;
+  final String timestamp;
+  final int index;
+
+  const _LocationPin({
+    required this.isInside,
+    required this.isLatest,
+    required this.timestamp,
+    required this.index,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isInside ? const Color(0xFF22C55E) : const Color(0xFFF97316);
+
+    return SizedBox(
+      width: isLatest ? 70 : 50,
+      height: isLatest ? 85 : 60,
+      child: Column(
+        mainAxisSize: MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Timestamp label above pin
+          if (timestamp.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: isLatest ? color : Colors.white,
+                borderRadius: BorderRadius.circular(4),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                isLatest ? 'NOW $timestamp' : timestamp,
+                style: TextStyle(
+                  fontSize: isLatest ? 12 : 10,
+                  fontWeight: FontWeight.w700,
+                  color: isLatest ? Colors.white : color,
+                ),
+              ),
+            ),
+          if (timestamp.isNotEmpty) const SizedBox(height: 4),
+          // Pin body
+          Container(
+            width: isLatest ? 40 : 24,
+            height: isLatest ? 40 : 24,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.5),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Center(
+              child: isLatest
+                  ? const Icon(Icons.person_pin_circle, color: Colors.white, size: 22)
+                  : Text(
+                      '$index',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            ),
+          ),
+          // Pin pointer
+          Container(
+            width: 2,
+            height: isLatest ? 10 : 6,
+            color: color,
+          ),
+          // Dot at bottom (anchor point)
+          Container(
+            width: isLatest ? 8 : 6,
+            height: isLatest ? 8 : 6,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

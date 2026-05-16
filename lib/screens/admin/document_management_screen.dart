@@ -47,51 +47,55 @@ class _DocumentManagementScreenState extends State<DocumentManagementScreen> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           content: SizedBox(
             width: 380,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label('Employee'),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedUserId,
-                  hint: const Text('Select employee', style: TextStyle(fontSize: 13)),
-                  items: users
-                      .map((u) => DropdownMenuItem(
-                          value: u['id'] as String,
-                          child: Text(u['name'] as String? ?? '', style: const TextStyle(fontSize: 13))))
-                      .toList(),
-                  onChanged: (v) => setS(() => selectedUserId = v),
-                  decoration: _inputDec(),
-                ),
-                const SizedBox(height: 12),
-                _label('Document Type'),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedType,
-                  items: _docTypes
-                      .skip(1)
-                      .map((t) => DropdownMenuItem(
-                          value: t,
-                          child: Text(_typeLabels[t] ?? t, style: const TextStyle(fontSize: 13))))
-                      .toList(),
-                  onChanged: (v) => setS(() => selectedType = v!),
-                  decoration: _inputDec(),
-                ),
-                const SizedBox(height: 12),
-                _label('Title'),
-                TextField(
-                  controller: titleCtrl,
-                  decoration: _inputDec(hint: 'Document title'),
-                  style: const TextStyle(fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                _label('Notes'),
-                TextField(
-                  controller: notesCtrl,
-                  maxLines: 2,
-                  decoration: _inputDec(hint: 'Additional notes...'),
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ],
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _label('Employee'),
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: selectedUserId,
+                    hint: const Text('Select employee', style: TextStyle(fontSize: 13)),
+                    items: users
+                        .map((u) => DropdownMenuItem(
+                            value: u['id'] as String,
+                            child: Text(u['name'] as String? ?? '', style: const TextStyle(fontSize: 13))))
+                        .toList(),
+                    onChanged: (v) => setS(() => selectedUserId = v),
+                    decoration: _inputDec(),
+                  ),
+                  const SizedBox(height: 12),
+                  _label('Document Type'),
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: selectedType,
+                    items: _docTypes
+                        .skip(1)
+                        .map((t) => DropdownMenuItem(
+                            value: t,
+                            child: Text(_typeLabels[t] ?? t, style: const TextStyle(fontSize: 13))))
+                        .toList(),
+                    onChanged: (v) => setS(() => selectedType = v!),
+                    decoration: _inputDec(),
+                  ),
+                  const SizedBox(height: 12),
+                  _label('Title'),
+                  TextField(
+                    controller: titleCtrl,
+                    decoration: _inputDec(hint: 'Document title'),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  _label('Notes'),
+                  TextField(
+                    controller: notesCtrl,
+                    maxLines: 2,
+                    decoration: _inputDec(hint: 'Additional notes...'),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [

@@ -51,6 +51,27 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Widget _buildGoogleG() {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+      ),
+      child: const Center(
+        child: Text(
+          'G',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF4285F4),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -69,38 +90,47 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Premium Logo
+                  // App Logo
                   Container(
-                    padding: const EdgeInsets.all(28),
+                    width: 120,
+                    height: 120,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
+                      color: Colors.white,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        width: 2.5,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'I',
+                        style: TextStyle(
+                          fontSize: 60,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF6366F1),
+                        ),
                       ),
                     ),
-                    child: const Icon(
-                      Icons.fingerprint,
-                      size: 84,
-                      color: Colors.white,
-                    ),
                   ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 32),
                   const Text(
-                    'Core Flow HCM',
+                    'Ittendify',
                     style: TextStyle(
-                      fontSize: 38,
+                      fontSize: 42,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      letterSpacing: 1.2,
+                      letterSpacing: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   Text(
-                    'Professional Attendance System',
+                    'Smart Attendance Tracking',
                     style: TextStyle(
-                      fontSize: 17,
+                      fontSize: 16,
                       color: Colors.white.withValues(alpha: 0.85),
                       letterSpacing: 0.5,
                       fontWeight: FontWeight.w500,
@@ -132,16 +162,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                 strokeWidth: 2.5,
                               ),
                             )
-                          : const Row(
+                          : Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
-                                  Icons.g_mobiledata_rounded,
-                                  size: 34,
-                                  color: Color(0xFF4285F4),
+                                // Google colorful logo
+                                Image.asset(
+                                  'assets/images/google_logo.png',
+                                  width: 24,
+                                  height: 24,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return _buildGoogleG();
+                                  },
                                 ),
-                                SizedBox(width: 10),
-                                Text(
+                                const SizedBox(width: 12),
+                                const Text(
                                   'Continue with Google',
                                   style: TextStyle(
                                     fontSize: 18,

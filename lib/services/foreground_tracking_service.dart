@@ -104,16 +104,47 @@ class _LocationTaskHandler extends TaskHandler {
       // Append to history (admin timeline reads this)
       await db.collection('locations').add(locationData);
 
-      // Update today's attendance with current status
-      final attDoc = await db.collection('attendance').doc('${uid}_$today').get();
+      // Update today's attendance with current status and time tracking
+      final attRef = db.collection('attendance').doc('${uid}_$today');
+      final attDoc = await attRef.get();
       if (attDoc.exists &&
           attDoc.data()?['checkInTime'] != null &&
           attDoc.data()?['checkOutTime'] == null) {
-        await db.collection('attendance').doc('${uid}_$today').update({
+        final attData = attDoc.data()!;
+
+        // Calculate time tracking
+        final updates = <String, dynamic>{
           'currentStatus': status,
           'lastLocationUpdate': nowIso,
           'atOffice': isInside,
-        });
+        };
+
+        // Time tracking logic (inline since we're in an isolate)
+        final lastActive = attData['lastActive'];
+        if (lastActive != null) {
+          final lastDate = DateTime.parse(lastActive);
+          final diffMins = now.difference(lastDate).inMinutes;
+
+          if (diffMins > 0 && diffMins < 15) {
+            // Within 15 min gap - track as active time
+            if (isInside) {
+              updates['insideTime'] = (attData['insideTime'] ?? 0) + diffMins;
+            } else {
+              updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
+            }
+          } else if (diffMins >= 15) {
+            // Gap > 15 mins = offline time
+            updates['offlineTime'] = (attData['offlineTime'] ?? 0) + diffMins;
+          }
+
+          // Recalculate derived fields
+          final newInsideTime = updates['insideTime'] ?? attData['insideTime'] ?? 0;
+          updates['insideOfficeTime'] = (newInsideTime as int) * 60 * 1000;
+          updates['totalHours'] = _computeTotalHours(attData['checkInTime'], nowIso);
+        }
+
+        updates['lastActive'] = nowIso;
+        await attRef.update(updates);
       }
 
       // Update notification text with neutral wording
@@ -136,6 +167,12 @@ class _LocationTaskHandler extends TaskHandler {
     final a = sin(dLat / 2) * sin(dLat / 2) +
         cos(lat1 * (pi / 180)) * cos(lat2 * (pi / 180)) * sin(dLon / 2) * sin(dLon / 2);
     return R * 2 * atan2(sqrt(a), sqrt(1 - a));
+  }
+
+  double _computeTotalHours(String? checkInIso, String? checkOutIso) {
+    if (checkInIso == null || checkOutIso == null) return 0.0;
+    final diffMs = DateTime.parse(checkOutIso).difference(DateTime.parse(checkInIso)).inMilliseconds;
+    return double.parse((diffMs / (1000 * 60 * 60)).toStringAsFixed(2));
   }
 }
 

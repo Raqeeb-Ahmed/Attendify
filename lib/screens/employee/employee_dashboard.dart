@@ -5,7 +5,6 @@ import '../../utils/app_config.dart';
 import 'package:intl/intl.dart';
 import '../../services/attendance_service.dart';
 import '../../services/location_service.dart';
-import 'package:geolocator/geolocator.dart';
 import '../../services/background_location_service.dart';
 import '../../services/work_manager_service.dart';
 import '../../services/foreground_tracking_service.dart';
@@ -171,6 +170,15 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
       if (mounted) await ForegroundTrackingService.requestBatteryExemption();
       await DevicePermissionService.syncToFirestore(user!.uid);
 
+      // Step 8: Check for approximate location and prompt user if needed
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) {
+        final needsPrecisePrompt = await DevicePermissionService.shouldPromptForPreciseLocation();
+        if (needsPrecisePrompt && mounted) {
+          _showApproximateLocationDialog();
+        }
+      }
+
       debugPrint('[Dashboard] Background tracking initialized successfully');
     } catch (e) {
       debugPrint('Background tracking error: ${getFirebaseErrorMessage(e)}');
@@ -277,6 +285,61 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Show dialog prompting user to enable precise location
+  void _showApproximateLocationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.gps_off, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Approximate Location Detected'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your location permission is set to "Approximate" which may cause inaccurate attendance tracking.',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 12),
+            Text('Please enable "Use precise location" in settings for:'),
+            SizedBox(height: 8),
+            Text('• Accurate office entry detection'),
+            Text('• Reliable distance calculations'),
+            Text('• Better attendance tracking'),
+            SizedBox(height: 12),
+            Text(
+              'Settings → Apps → Attendo → Permissions → Location → Use precise location',
+              style: TextStyle(color: Colors.blue, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Later'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              LocationPermissionService.openAppSettings();
+            },
+            icon: const Icon(Icons.settings),
+            label: const Text('Open Settings'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleCheckOut() async {

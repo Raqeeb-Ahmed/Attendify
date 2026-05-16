@@ -3,7 +3,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/app_config.dart';
 import 'attendance_service.dart';
 
 /// WiFi Auto Check-in Service
@@ -163,6 +162,12 @@ class WiFiAutoCheckInService {
       // Match by exact SSID
       if (cleanName == cleanOfficeName) {
         debugPrint('[WiFiAutoCheckInService] Exact WiFi SSID match: $wifiName');
+        return true;
+      }
+
+      // Match by BSSID (MAC address) - useful for hidden networks
+      if (cleanBssid != null && cleanBssid == cleanOfficeName.replaceAll(':', '')) {
+        debugPrint('[WiFiAutoCheckInService] WiFi BSSID match: $bssid');
         return true;
       }
     }

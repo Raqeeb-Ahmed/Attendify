@@ -410,13 +410,19 @@ class AttendanceService {
       });
 
       // Update time tracking on attendance
-      await _updateTimeTracking(userId, now, isInside, nowIso);
+      await _updateTimeTrackingInternal(userId, now, isInside, nowIso);
     } catch (e) {
       debugPrint("Location tracking error: $e");
     }
   }
 
-  Future<void> _updateTimeTracking(String userId, DateTime now, bool isInside, String nowIso) async {
+  /// Public method for external services to update time tracking
+  /// Called by BackgroundLocationService, ForegroundTrackingService, WorkManager
+  Future<void> updateTimeTracking(String userId, DateTime now, bool isInside, String nowIso) async {
+    return _updateTimeTrackingInternal(userId, now, isInside, nowIso);
+  }
+
+  Future<void> _updateTimeTrackingInternal(String userId, DateTime now, bool isInside, String nowIso) async {
     final attendanceId = getTodayAttendanceId(userId);
     final attRef = _db.collection('attendance').doc(attendanceId);
     final attSnap = await attRef.get();

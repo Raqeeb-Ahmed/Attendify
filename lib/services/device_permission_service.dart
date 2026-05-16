@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -87,16 +88,41 @@ class DevicePermissionService {
   }
 
   /// Check if precise location is enabled by attempting to get high accuracy position
+  /// Note: This is a heuristic - even with precise permission, indoor GPS can be poor
   static Future<bool> _isPreciseLocation() async {
     try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 5),
+          timeLimit: Duration(seconds: 8),
         ),
       );
-      // If accuracy is available and <= 20 meters, consider it precise
-      return position.accuracy > 0 && position.accuracy <= 20;
+      // If we got a position with reasonable accuracy, consider it precise
+      // Relaxed threshold to 50m to account for indoor GPS limitations
+      final isPrecise = position.accuracy > 0 && position.accuracy <= 50;
+      debugPrint('[DevicePermissionService] Location accuracy: ${position.accuracy.toStringAsFixed(1)}m -> precise=$isPrecise');
+      return isPrecise;
+    } on TimeoutException {
+      // Timed out - might be approximate location or poor GPS signal
+      debugPrint('[DevicePermissionService] Location timed out - likely approximate or indoor');
+      return false;
+    } catch (e) {
+      debugPrint('[DevicePermissionService] Error checking precise location: $e');
+      return false;
+    }
+  }
+
+  /// Public method to check if user should be prompted about approximate location
+  /// Returns true if permission is acceptable but location is approximate
+  static Future<bool> shouldPromptForPreciseLocation() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      // Has "Always" permission but might be approximate
+      if (permission == LocationPermission.always) {
+        final isPrecise = await _isPreciseLocation();
+        return !isPrecise; // Should prompt if not precise
+      }
+      return false;
     } catch (_) {
       return false;
     }

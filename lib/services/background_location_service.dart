@@ -187,6 +187,9 @@ class BackgroundLocationService {
         'distanceFromOffice': distance.round(),
       });
 
+      // Update time tracking on attendance (if checked in)
+      await _attendanceService.updateTimeTracking(_currentUid!, now, isInsideRadius, nowIso);
+
       debugPrint(
         '[BackgroundLocationService] Updated: $locationStatus (${distance.toStringAsFixed(0)}m)${isInsideRadius && !_autoCheckedIn ? ' - Auto check-in ready' : ''}',
       );

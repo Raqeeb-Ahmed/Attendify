@@ -236,6 +236,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     final atOffice = d['atOffice'] as bool? ?? false;
     final userId = d['userId'] as String? ?? '';
 
+    final sessionStatus = d['sessionStatus'] as String? ?? '';
+    final extraHours = (d['extraHours'] as num?)?.toInt() ?? 0;
+
     Color statusColor;
     Color statusBg;
     String statusLabel;
@@ -332,8 +335,29 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                   _timePill('Inside', '${insideTime ~/ 60}h ${insideTime % 60}m', const Color(0xFF22C55E)),
                   const SizedBox(width: 8),
                   _timePill('Outside', '${outsideTime ~/ 60}h ${outsideTime % 60}m', const Color(0xFFF97316)),
+                  if (extraHours > 0) ...[const SizedBox(width: 8), _timePill('Overtime', '${extraHours ~/ 60}h ${extraHours % 60}m', const Color(0xFF8B5CF6))],
                 ],
               ),
+              if (sessionStatus == 'auto-checkout')
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(8)),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.schedule_rounded, size: 10, color: Color(0xFF6366F1)),
+                            SizedBox(width: 4),
+                            Text('AUTO-CHECKOUT 6 PM', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF6366F1))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ],
         ),

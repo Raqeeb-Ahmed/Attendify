@@ -662,10 +662,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     String subLabel;
     Color cardBg;
 
-    if (!isActive) {
+    final isAutoCheckedOut = _todayData != null && _todayData!['sessionStatus'] == 'auto-checkout';
+
+    if (isAutoCheckedOut) {
+      dotColor = const Color(0xFF8B5CF6);
+      statusLabel = 'Session ended';
+      subLabel = 'Auto checked-out at 6 PM';
+      cardBg = const Color(0xFFF5F3FF);
+    } else if (!isActive) {
       dotColor = const Color(0xFF94A3B8);
-      statusLabel = 'Not checked in';
-      subLabel = 'Check in to start your session';
+      statusLabel = 'Awaiting check-in';
+      subLabel = 'Will auto check-in when you reach office WiFi';
       cardBg = const Color(0xFFF8FAFC);
     } else if (isAtOffice) {
       dotColor = const Color(0xFF22C55E);
@@ -696,7 +703,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              isActive ? (isAtOffice ? Icons.domain_verification_rounded : Icons.directions_walk_rounded) : Icons.work_off_rounded,
+              isAutoCheckedOut ? Icons.check_circle_rounded : isActive ? (isAtOffice ? Icons.domain_verification_rounded : Icons.directions_walk_rounded) : Icons.wifi_rounded,
               color: dotColor, size: 24,
             ),
           ),
@@ -891,6 +898,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
               _mobileLogItem('Out', outStr),
               _mobileLogItem('Inside', formatMins(d['insideTime'])),
               _mobileLogItem('Outside', formatMins(d['outsideTime'])),
+              if ((d['extraHours'] is num) && (d['extraHours'] as num) > 0)
+                _mobileLogItem('Extra', formatMins(d['extraHours'])),
             ],
           ),
         ],

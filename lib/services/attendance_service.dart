@@ -382,35 +382,40 @@ class AttendanceService {
   }
 
   /// Performs checkout at 6 PM, calculates overtime beyond 5:45 PM.
+  /// Uses a Firestore transaction to prevent race conditions when the Timer
+  /// and ForegroundService both fire around the same time.
   Future<void> autoCheckout(String userId) async {
     try {
       final attendanceId = getTodayAttendanceId(userId);
       final docRef = _db.collection('attendance').doc(attendanceId);
-      final docSnap = await docRef.get();
-
-      if (!docSnap.exists) return;
-      final attData = docSnap.data()!;
-      if (attData['checkOutTime'] != null) return; // Already checked out
-
       final now = DateTime.now();
       final nowIso = now.toIso8601String();
-      final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
-      final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
 
-      // Calculate overtime: minutes worked after 5:45 PM
-      final checkoutMins = now.hour * 60 + now.minute;
-      final overtimeMins = (checkoutMins > officeEndMinutes)
-          ? checkoutMins - officeEndMinutes
-          : 0;
+      bool didCheckout = false;
 
-      await docRef.update({
-        'checkOutTime': nowIso,
-        'lastActive': nowIso,
-        'sessionStatus': 'auto-checkout',
-        'totalHours': totalHours,
-        'insideOfficeTime': insideOfficeMs,
-        'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
+      await _db.runTransaction((tx) async {
+        final docSnap = await tx.get(docRef);
+        if (!docSnap.exists) return;
+        final attData = docSnap.data()!;
+        if (attData['checkOutTime'] != null) return; // Already checked out
+
+        final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
+        final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
+        final checkoutMins = now.hour * 60 + now.minute;
+        final overtimeMins = checkoutMins > officeEndMinutes ? checkoutMins - officeEndMinutes : 0;
+
+        tx.update(docRef, {
+          'checkOutTime': nowIso,
+          'lastActive': nowIso,
+          'sessionStatus': 'auto-checkout',
+          'totalHours': totalHours,
+          'insideOfficeTime': insideOfficeMs,
+          'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
+        });
+        didCheckout = true;
       });
+
+      if (!didCheckout) return;
 
       // Mark presence offline
       try {
@@ -420,9 +425,8 @@ class AttendanceService {
         debugPrint("RTDB presence update failed: $e");
       }
 
-      // Stop heartbeat and location tracking
+      // Stop heartbeat; keep location tracking for overtime (ForegroundService handles post-checkout)
       stopHeartbeat(userId);
-      stopLocationTracking();
       cancelAutoCheckoutTimer();
 
       debugPrint('[AutoCheckout] User $userId auto-checked out at $nowIso');

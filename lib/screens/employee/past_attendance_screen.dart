@@ -370,8 +370,8 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                         Expanded(
                                           child: _buildDetailCard(
                                             'Check-in',
-                                            selectedRecord['checkIn'] != null
-                                                ? DateFormat('hh:mm a').format((selectedRecord['checkIn'] as Timestamp).toDate())
+                                            selectedRecord['checkInTime'] != null
+                                                ? DateFormat('hh:mm a').format(DateTime.parse(selectedRecord['checkInTime'] as String).toLocal())
                                                 : '--:--',
                                             Icons.login,
                                             const Color(0xFF6366F1),
@@ -381,16 +381,18 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                         Expanded(
                                           child: _buildDetailCard(
                                             'Check-out',
-                                            selectedRecord['checkOut'] != null
-                                                ? DateFormat('hh:mm a').format((selectedRecord['checkOut'] as Timestamp).toDate())
-                                                : '--:--',
-                                            Icons.logout,
+                                            selectedRecord['checkOutTime'] != null
+                                                ? DateFormat('hh:mm a').format(DateTime.parse(selectedRecord['checkOutTime'] as String).toLocal())
+                                                : selectedRecord['sessionStatus'] == 'active' ? 'Active' : 'Auto 6 PM',
+                                            Icons.logout_rounded,
                                             const Color(0xFF64748B),
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 24),
+                                    const SizedBox(height: 16),
+                                    _buildTimeAllocation(selectedRecord),
+                                    const SizedBox(height: 16),
                                     _buildLocationMap(),
                                   ],
                                 )
@@ -601,10 +603,15 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         textColor = const Color(0xFFF97316);
         label = 'OUTSIDE';
         break;
+      case 'AUTO-CHECKOUT':
+        bgColor = const Color(0xFFEEF2FF);
+        textColor = const Color(0xFF6366F1);
+        label = 'AUTO-CHECKOUT';
+        break;
       default:
         bgColor = const Color(0xFFF1F5F9);
         textColor = const Color(0xFF64748B);
-        label = status.toUpperCase();
+        label = status.isEmpty ? 'PENDING' : status.toUpperCase();
     }
 
     return Container(
@@ -621,6 +628,64 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
           fontWeight: FontWeight.w700,
           color: textColor,
         ),
+      ),
+    );
+  }
+
+  String _fmtMins(dynamic val) {
+    final m = (val is num) ? val.toInt() : 0;
+    return '${m ~/ 60}h ${m % 60}m';
+  }
+
+  Widget _buildTimeAllocation(Map<String, dynamic> record) {
+    final insideTime = record['insideTime'];
+    final outsideTime = record['outsideTime'];
+    final offlineTime = record['offlineTime'];
+    final extraHours = record['extraHours'];
+    final totalHours = (record['totalHours'] as num?)?.toDouble() ?? 0.0;
+
+    if (insideTime == null && outsideTime == null && extraHours == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('TIME ALLOCATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8), letterSpacing: 1)),
+              const Spacer(),
+              Text('Total: ${totalHours.toStringAsFixed(1)}h', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF6366F1))),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _timeAllocationRow('Inside Office', _fmtMins(insideTime), const Color(0xFF22C55E)),
+          _timeAllocationRow('Outside Office', _fmtMins(outsideTime), const Color(0xFFF97316)),
+          _timeAllocationRow('Offline / Idle', _fmtMins(offlineTime), const Color(0xFF94A3B8)),
+          if ((extraHours is num) && extraHours > 0)
+            _timeAllocationRow('Overtime', _fmtMins(extraHours), const Color(0xFF8B5CF6)),
+        ],
+      ),
+    );
+  }
+
+  Widget _timeAllocationRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF475569), fontWeight: FontWeight.w500))),
+          Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+        ],
       ),
     );
   }

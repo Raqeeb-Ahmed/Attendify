@@ -46,3 +46,5 @@ flutter:
 flutter_launcher_icons:
   android: true
   image_path: "assets/images/app_icon/icon.png"
+  background_color: "#3d94c9"
+  

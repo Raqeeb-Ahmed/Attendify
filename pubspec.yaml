@@ -41,6 +41,7 @@ flutter:
   assets:
     - assets/images/
     - assets/images/google_logo.png
+    - assets/images/app_icon/icon.png
 
   # App Icons
 flutter_launcher_icons:

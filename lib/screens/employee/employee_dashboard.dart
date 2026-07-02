@@ -6,11 +6,12 @@ import 'package:intl/intl.dart';
 import '../../services/attendance_service.dart';
 import '../../services/location_service.dart';
 import '../../services/background_location_service.dart';
-import '../../services/work_manager_service.dart';
 import '../../services/foreground_tracking_service.dart';
 import '../../services/device_permission_service.dart';
 import '../../services/wifi_auto_checkin_service.dart';
 import '../../services/location_permission_service.dart';
+import '../../services/background_checkin_service.dart';
+import '../../services/offline_location_service.dart';
 import '../../utils/firebase_exception_handler.dart';
 import 'employee_sidebar.dart';
 import '../common/notifications_screen.dart';
@@ -23,6 +24,7 @@ import 'expenses_screen.dart';
 import 'my_learning_screen.dart';
 import 'my_documents_screen.dart';
 import 'my_profile_screen.dart';
+import '../../widgets/monthly_progress_widget.dart';
 
 class EmployeeDashboard extends StatefulWidget {
   const EmployeeDashboard({super.key});
@@ -35,6 +37,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     with WidgetsBindingObserver {
   final AttendanceService _attendanceService = AttendanceService();
   final LocationService _locationService = LocationService();
+  final BackgroundCheckInService _backgroundService = BackgroundCheckInService();
   final user = FirebaseAuth.instance.currentUser;
 
   int _selectedNavIndex = 0;
@@ -46,6 +49,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
   late final double _officeLat;
   late final double _officeLng;
 
+  int _offlineCount = 0;
+  bool _isSyncing = false;
+
   @override
   void initState() {
     super.initState();
@@ -55,12 +61,46 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     _loadTodayData();
     _loadCurrentLocation();
     _startBackgroundTracking();
+    _checkAndSyncOfflineLocations();
+  }
+
+  Future<void> _checkAndSyncOfflineLocations() async {
+    if (user == null) return;
+    try {
+      final count = await OfflineLocationService().getCachedLocationsCount();
+      if (mounted) {
+        setState(() {
+          _offlineCount = count;
+        });
+      }
+      if (count > 0 && !_isSyncing) {
+        setState(() {
+          _isSyncing = true;
+        });
+        await OfflineLocationService().syncCachedLocations(user!.uid);
+        final newCount = await OfflineLocationService().getCachedLocationsCount();
+        if (mounted) {
+          setState(() {
+            _offlineCount = newCount;
+            _isSyncing = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('[Dashboard] Error checking/syncing offline locations: $e');
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && user != null) {
       DevicePermissionService.syncToFirestore(user!.uid);
+      _checkAndSyncOfflineLocations();
     }
   }
 
@@ -70,11 +110,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     BackgroundLocationService().stopTracking();
     WiFiAutoCheckInService().stopMonitoring();
     if (user != null) {
+      // Only stop heartbeat and auto-checkout timer, but keep location tracking active
       _attendanceService.stopHeartbeat(user!.uid);
-      _attendanceService.stopLocationTracking();
       _attendanceService.cancelAutoCheckoutTimer();
     }
     // Note: ForegroundTrackingService keeps running after dispose (by design)
+    // Location tracking continues even after check-out for continuous monitoring
     super.dispose();
   }
 
@@ -100,78 +141,36 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
             // Permission still not acceptable - show warning
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Location permission is required for attendance tracking. '
-                    'Please enable "Allow all the time" and "Use precise location" in settings.',
-                  ),
-                  backgroundColor: const Color(0xFFF97316),
-                  duration: const Duration(seconds: 8),
-                  action: SnackBarAction(
-                    label: 'Settings',
-                    textColor: Colors.white,
-                    onPressed: () => LocationPermissionService.openAppSettings(),
-                  ),
+                const SnackBar(
+                  content: Text('Location permission is required for auto check-in. Please enable "Always" location permission.'),
+                  duration: Duration(seconds: 5),
+                  backgroundColor: Colors.orange,
                 ),
               );
             }
-            return; // Don't proceed without proper permissions
+            return;
           }
         }
       }
 
-      // Persist permission state to Firestore
-      await DevicePermissionService.syncToFirestore(user!.uid);
+      // Step 2: Start unified background check-in service
+      debugPrint('[Dashboard] Starting unified background check-in service...');
 
-      // Get user department from Firestore
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
-      final department = userDoc.data()?['department'];
-
-      // Step 2: Start WiFi auto check-in monitoring
-      WiFiAutoCheckInService().startMonitoring(
-        user!.uid,
-        user!.displayName ?? 'Unknown',
-        user!.email ?? '',
-        department: department,
-        customWifiNames: AppConfig.officeWifiNames,
-      );
-
-      // Step 3: Start GPS-based background location tracking
-      BackgroundLocationService().startTracking(
-        user!.uid,
-        user!.displayName ?? 'Unknown',
-        user!.email ?? '',
-        department: department,
-      );
-
-      // Step 4: Register WorkManager periodic task for true background execution
-      await WorkManagerService.registerLocationTask(
-        uid: user!.uid,
-        name: user!.displayName ?? 'Unknown',
+      await _backgroundService.startAllServices(
+        userId: user!.uid,
+        userName: user!.displayName ?? 'Employee',
         email: user!.email ?? '',
-        department: department as String?,
+        department: 'N/A', // You can get this from user profile if needed
       );
 
-      // Step 5: Start heartbeat if already checked in
-      final data = await _attendanceService.fetchTodayAttendance(user!.uid);
-      if (data != null && data['checkOutTime'] == null && data['sessionStatus'] == 'active') {
-        _attendanceService.startHeartbeat(user!.uid);
-        _attendanceService.startLocationTracking(user!.uid);
-        _attendanceService.startAutoCheckoutTimer(user!.uid);
-      }
-      if (mounted) setState(() => _todayData = data);
-
-      // Step 6: Request notification permission
-      await Future.delayed(const Duration(milliseconds: 800));
-      if (mounted) await ForegroundTrackingService.requestPermissions();
-      await DevicePermissionService.syncToFirestore(user!.uid);
-
-      // Step 7: Request battery optimization exemption
+      debugPrint('[Dashboard] Unified background check-in service started successfully');
+      
+      // Step 3: Additional setup
       await Future.delayed(const Duration(milliseconds: 800));
       if (mounted) await ForegroundTrackingService.requestBatteryExemption();
       await DevicePermissionService.syncToFirestore(user!.uid);
 
-      // Step 8: Check for approximate location and prompt user if needed
+      // Step 4: Check for approximate location and prompt user if needed
       await Future.delayed(const Duration(seconds: 2));
       if (mounted) {
         final needsPrecisePrompt = await DevicePermissionService.shouldPromptForPreciseLocation();
@@ -204,6 +203,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
           _distanceFromOffice = dist;
         });
       }
+      await _checkAndSyncOfflineLocations();
     } catch (e) {
       debugPrint('Location error: $e');
     }
@@ -399,6 +399,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
               _buildTodaySummary(),
               const SizedBox(height: 20),
               _buildTrackingStatus(),
+              const SizedBox(height: 20),
+              MonthlyProgressWidget(
+                userId: user!.uid,
+                selectedMonth: DateTime.now(),
+              ),
             ],
           ),
         ),
@@ -414,6 +419,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
         _buildTodaySummary(),
         const SizedBox(height: 16),
         _buildTrackingStatus(),
+        const SizedBox(height: 16),
+        MonthlyProgressWidget(
+          userId: user!.uid,
+          selectedMonth: DateTime.now(),
+        ),
         const SizedBox(height: 16),
         _buildAttendanceLog(),
       ],
@@ -447,9 +457,15 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
                     style: TextStyle(fontSize: isMobile ? 18 : 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
                 const SizedBox(height: 2),
                 Text(dateStr, style: TextStyle(fontSize: isMobile ? 11 : 13, color: const Color(0xFF94A3B8))),
+                if (isMobile) ...[
+                  const SizedBox(height: 8),
+                  _buildStatusBadge(isCheckedIn, isCheckedOut),
+                ],
               ],
             ),
           ),
+          _buildSyncBadge(),
+          const SizedBox(width: 8),
           // Notification bell with unread badge
           if (user != null)
             StreamBuilder<int>(
@@ -482,61 +498,127 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
                 );
               },
             ),
-          const SizedBox(width: 4),
-          if (!isCheckedIn)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFDBA74), width: 1.5),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.wifi_rounded, size: 16, color: Color(0xFFEA580C)),
-                  SizedBox(width: 6),
-                  Text('Auto check-in on WiFi', style: TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.w600, fontSize: 13)),
-                ],
-              ),
-            )
-          else if (!isCheckedOut)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF16A34A)),
-                  SizedBox(width: 6),
-                  Text('Auto checkout 6 PM', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 13)),
-                ],
-              ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle, size: 16, color: Color(0xFF16A34A)),
-                  SizedBox(width: 6),
-                  Text('Completed', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 13)),
-                ],
-              ),
-            ),
+          if (!isMobile) ...[
+            const SizedBox(width: 12),
+            _buildStatusBadge(isCheckedIn, isCheckedOut),
+          ],
         ],
       ),
     );
+  }
+
+  Widget _buildSyncBadge() {
+    if (_offlineCount > 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFFCA5A5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 14, color: Color(0xFFEF4444)),
+            const SizedBox(width: 4),
+            Text('$_offlineCount Unsynced', style: const TextStyle(color: Color(0xFFEF4444), fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    } else if (_isSyncing) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEF2FF),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFC7D2FE)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF6366F1)),
+            ),
+            SizedBox(width: 6),
+            Text('Syncing...', style: TextStyle(color: Color(0xFF6366F1), fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    } else {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFBBF7D0)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_done, size: 14, color: Color(0xFF22C55E)),
+            SizedBox(width: 4),
+            Text('Synced', style: TextStyle(color: Color(0xFF22C55E), fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }
+  }
+
+  Widget _buildStatusBadge(bool isCheckedIn, bool isCheckedOut) {
+    if (!isCheckedIn) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF7ED),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFFDBA74), width: 1.5),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_rounded, size: 16, color: Color(0xFFEA580C)),
+            SizedBox(width: 6),
+            Text('Auto check-in on WiFi', style: TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.w600, fontSize: 13)),
+          ],
+        ),
+      );
+    } else if (!isCheckedOut) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF16A34A)),
+            SizedBox(width: 6),
+            Text('Auto checkout 6 PM', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 13)),
+          ],
+        ),
+      );
+    } else {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle, size: 16, color: Color(0xFF16A34A)),
+            SizedBox(width: 6),
+            Text('Completed', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 13)),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildTodaySummary() {
@@ -730,6 +812,42 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
                       Text('Session running in background', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                     ],
                   )],
+                if (_offlineCount > 0) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        _isSyncing ? Icons.sync : Icons.cloud_off,
+                        size: 13,
+                        color: _isSyncing ? const Color(0xFF6366F1) : const Color(0xFFEF4444),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _isSyncing
+                            ? 'Syncing $_offlineCount offline locations...'
+                            : '$_offlineCount locations cached offline',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _isSyncing ? const Color(0xFF6366F1) : const Color(0xFFEF4444),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (_isSyncing) ...[
+                  const SizedBox(height: 6),
+                  const Row(
+                    children: [
+                      SizedBox(
+                        width: 10,
+                        height: 10,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6366F1)),
+                      ),
+                      SizedBox(width: 4),
+                      Text('Syncing offline locations...', style: TextStyle(fontSize: 11, color: Color(0xFF6366F1))),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

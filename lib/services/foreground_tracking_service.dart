@@ -4,7 +4,10 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:http/http.dart' as http;
 import '../utils/app_config.dart';
+import 'offline_location_service.dart';
+import 'attendance_service.dart';
 
 // ─── Top-level entry point (required — must be a top-level function) ─────────
 
@@ -51,15 +54,6 @@ class _LocationTaskHandler extends TaskHandler {
       final nowIso = now.toIso8601String();
       final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      // Heartbeat
-      await db.collection('heartbeats').doc(uid).set({
-        'userId': uid,
-        'userName': name,
-        'email': email,
-        'lastSeen': nowIso,
-        'online': true,
-      }, SetOptions(merge: true));
-
       // Location permission check - REQUIRES "Always" for background tracking
       final permission = await Geolocator.checkPermission();
       if (permission != LocationPermission.always) {
@@ -98,30 +92,60 @@ class _LocationTaskHandler extends TaskHandler {
         'distanceFromOffice': distance.round(),
       };
 
+      // Check internet connectivity
+      bool isOnline = false;
+      try {
+        final response = await http
+            .get(Uri.parse('https://www.google.com'))
+            .timeout(const Duration(seconds: 5));
+        isOnline = response.statusCode == 200;
+      } catch (_) {
+        isOnline = false;
+      }
+
+      if (!isOnline) {
+        debugPrint('[ForegroundTask] Device offline - Caching location locally');
+        await OfflineLocationService().cacheLocation(locationData);
+        
+        await FlutterForegroundTask.updateService(
+          notificationTitle: 'Work session active (Offline)',
+          notificationText: 'Offline tracking active. Cached location locally.',
+        );
+        return;
+      }
+
+      // Online: Sync any cached offline locations first
+      await OfflineLocationService().syncCachedLocations(uid);
+
+      // Heartbeat
+      await db.collection('heartbeats').doc(uid).set({
+        'userId': uid,
+        'userName': name,
+        'email': email,
+        'lastSeen': nowIso,
+        'online': true,
+      }, SetOptions(merge: true));
+
       // Overwrite latest doc (admin live view reads this)
       await db.collection('locations').doc('${uid}_latest').set(locationData);
 
       // Append to history (admin timeline reads this)
       await db.collection('locations').add(locationData);
 
-      // Auto-checkout at 6:00 PM (18:00)
+      // ── Auto-checkout at 6:00 PM (18:00) ─────────────────────────────────
       final autoCheckoutTime = DateTime(now.year, now.month, now.day, 18, 0);
-
-      // Update today's attendance with current status and time tracking
       final attRef = db.collection('attendance').doc('${uid}_$today');
       final attDoc = await attRef.get();
+
       if (attDoc.exists && attDoc.data()?['checkInTime'] != null) {
         final attData = attDoc.data()!;
         final alreadyCheckedOut = attData['checkOutTime'] != null;
-        final isAutoCheckout = attData['sessionStatus'] == 'auto-checkout';
 
-        // ── Auto-checkout trigger ──────────────────────────────────────────
+        // Trigger auto-checkout if past 6 PM and not yet checked out
         if (!alreadyCheckedOut && now.isAfter(autoCheckoutTime)) {
           final checkInTime = attData['checkInTime'] as String?;
-          final totalHours = _computeTotalHours(checkInTime, nowIso);
+          final totalHours = _computeTotalHoursLocal(checkInTime, nowIso);
           final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
-
-          // Overtime = minutes after 5:45 PM (officeEnd=17:45)
           const officeEndMins = 17 * 60 + 45;
           final nowMins = now.hour * 60 + now.minute;
           final overtimeMins = nowMins > officeEndMins ? nowMins - officeEndMins : 0;
@@ -136,82 +160,16 @@ class _LocationTaskHandler extends TaskHandler {
           });
           debugPrint('[ForegroundTask] Auto-checkout done. Overtime: ${overtimeMins}m');
 
-          // Keep foreground service running but update notification
           await FlutterForegroundTask.updateService(
             notificationTitle: 'Work session ended',
             notificationText: 'Auto checked-out. Overtime tracking active.',
           );
           return; // Don't do more time tracking this cycle
         }
-
-        // ── Post-checkout overtime tracking ───────────────────────────────
-        // If already auto-checked out but user still at office → add extra hours
-        if (isAutoCheckout && alreadyCheckedOut && isInside) {
-          final lastOvertimeActive = attData['lastOvertimeActive'] as String?;
-          if (lastOvertimeActive != null) {
-            final lastDate = DateTime.parse(lastOvertimeActive);
-            final diffMins = now.difference(lastDate).inMinutes;
-            if (diffMins > 0 && diffMins < 15) {
-              await attRef.update({
-                'extraHours': (attData['extraHours'] ?? 0) + diffMins,
-                'lastOvertimeActive': nowIso,
-              });
-              debugPrint('[ForegroundTask] Added ${diffMins}m to overtime (user still at office)');
-            } else {
-              await attRef.update({'lastOvertimeActive': nowIso});
-            }
-          } else {
-            await attRef.update({'lastOvertimeActive': nowIso});
-          }
-          await FlutterForegroundTask.updateService(
-            notificationTitle: 'Overtime tracking',
-            notificationText: isInside ? 'You are still at the office' : 'You are away',
-          );
-          return;
-        }
-
-        // ── Normal in-session time tracking ───────────────────────────────
-        if (!alreadyCheckedOut) {
-          final updates = <String, dynamic>{
-            'currentStatus': status,
-            'lastLocationUpdate': nowIso,
-            'atOffice': isInside,
-          };
-
-          const officeStartMins = 9 * 60 + 45;
-          const officeEndMins = 17 * 60 + 45;
-          final currentMins = now.hour * 60 + now.minute;
-
-          final lastActive = attData['lastActive'];
-          if (lastActive != null) {
-            final lastDate = DateTime.parse(lastActive);
-            final diffMins = now.difference(lastDate).inMinutes;
-
-            if (diffMins > 0 && diffMins < 15) {
-              if (currentMins > officeEndMins) {
-                updates['extraHours'] = (attData['extraHours'] ?? 0) + diffMins;
-              } else if (currentMins >= officeStartMins) {
-                if (isInside) {
-                  updates['insideTime'] = (attData['insideTime'] ?? 0) + diffMins;
-                } else {
-                  updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
-                }
-              } else {
-                updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
-              }
-            } else if (diffMins >= 15) {
-              updates['offlineTime'] = (attData['offlineTime'] ?? 0) + diffMins;
-            }
-
-            final newInsideTime = updates['insideTime'] ?? attData['insideTime'] ?? 0;
-            updates['insideOfficeTime'] = (newInsideTime as int) * 60 * 1000;
-            updates['totalHours'] = _computeTotalHours(attData['checkInTime'], nowIso);
-          }
-
-          updates['lastActive'] = nowIso;
-          await attRef.update(updates);
-        }
       }
+
+      // ── Delegate ALL time-tracking arithmetic to the centralized service ──
+      await AttendanceService().updateTimeTracking(uid, now, isInside, nowIso);
 
       // Update notification text with neutral wording
       final notifText = isInside ? 'You are at the office' : 'You are away';
@@ -235,7 +193,9 @@ class _LocationTaskHandler extends TaskHandler {
     return R * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
 
-  double _computeTotalHours(String? checkInIso, String? checkOutIso) {
+  /// Local helper used ONLY for the auto-checkout snapshot calculation.
+  /// All ongoing metric tracking is handled by AttendanceService.
+  double _computeTotalHoursLocal(String? checkInIso, String? checkOutIso) {
     if (checkInIso == null || checkOutIso == null) return 0.0;
     final diffMs = DateTime.parse(checkOutIso).difference(DateTime.parse(checkInIso)).inMilliseconds;
     return double.parse((diffMs / (1000 * 60 * 60)).toStringAsFixed(2));

@@ -68,6 +68,7 @@ class AdminSidebar extends StatelessWidget {
           _buildNavItem(7, Icons.description_rounded, 'Documents'),
           _buildNavItem(8, Icons.receipt_long_rounded, 'Expense Claims'),
           _buildNavItem(9, Icons.analytics_rounded, 'Reports & Analytics'),
+          _buildNavItem(10, Icons.bar_chart_rounded, 'Detailed Overview', isAdmin: true),
 
           const Spacer(),
 

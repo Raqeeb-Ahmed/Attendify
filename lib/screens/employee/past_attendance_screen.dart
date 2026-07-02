@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import '../../utils/app_config.dart';
 import 'package:intl/intl.dart';
 
 class PastAttendanceScreen extends StatefulWidget {
@@ -20,21 +17,14 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
   DateTime _selectedDay = DateTime.now();
   
   List<Map<String, dynamic>> _attendanceRecords = [];
-  List<Map<String, dynamic>> _dayLocations = [];
   
   bool _isLoading = true;
-  bool _isLoadingLocations = false;
 
-  late final double _officeLat;
-  late final double _officeLng;
 
   @override
   void initState() {
     super.initState();
-    _officeLat = AppConfig.officeLat;
-    _officeLng = AppConfig.officeLng;
     _fetchMonthData();
-    _fetchDayLocations();
   }
 
   Future<void> _fetchMonthData() async {
@@ -65,35 +55,6 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
     }
   }
 
-  Future<void> _fetchDayLocations() async {
-    if (user == null) return;
-    
-    setState(() => _isLoadingLocations = true);
-    try {
-      final dayStr = DateFormat('yyyy-MM-dd').format(_selectedDay);
-      final startTime = '${dayStr}T00:00:00.000Z';
-      final endTime = '${dayStr}T23:59:59.999Z';
-      
-      final snapshot = await FirebaseFirestore.instance
-          .collection('locations')
-          .where('userId', isEqualTo: user!.uid)
-          .where('timestamp', isGreaterThanOrEqualTo: startTime)
-          .where('timestamp', isLessThanOrEqualTo: endTime)
-          .orderBy('timestamp', descending: false)
-          .get();
-      
-      setState(() {
-        _dayLocations = snapshot.docs.map((doc) => {
-          'id': doc.id,
-          ...doc.data(),
-        }).toList();
-      });
-    } catch (e) {
-      debugPrint('Error fetching locations: $e');
-    } finally {
-      setState(() => _isLoadingLocations = false);
-    }
-  }
 
   List<DateTime> _getDaysInMonth() {
     final firstDay = DateTime(_currentMonth.year, _currentMonth.month, 1);
@@ -392,8 +353,6 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                     ),
                                     const SizedBox(height: 16),
                                     _buildTimeAllocation(selectedRecord),
-                                    const SizedBox(height: 16),
-                                    _buildLocationMap(),
                                   ],
                                 )
                               : Center(
@@ -500,7 +459,6 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         return InkWell(
           onTap: isFuture ? null : () {
             setState(() => _selectedDay = day);
-            _fetchDayLocations();
           },
           child: Container(
             decoration: BoxDecoration(
@@ -729,138 +687,4 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
     );
   }
 
-  Widget _buildLocationMap() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.map, size: 18, color: Color(0xFF6366F1)),
-            const SizedBox(width: 8),
-            const Text(
-              'Location Trail',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1E293B),
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${_dayLocations.length} GPS points',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Container(
-          height: 300,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: _isLoadingLocations
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)))
-                : _dayLocations.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.location_off, size: 48, color: Colors.grey.shade300),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No location data for this day',
-                              style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      )
-                    : FlutterMap(
-                        options: MapOptions(
-                          initialCenter: LatLng(_dayLocations[0]['lat'], _dayLocations[0]['lng']),
-                          initialZoom: 15.0,
-                        ),
-                        children: [
-                          TileLayer(
-                            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.attendo.app',
-                          ),
-                          // Office marker
-                          MarkerLayer(
-                            markers: [
-                              Marker(
-                                point: LatLng(_officeLat, _officeLng),
-                                width: 40,
-                                height: 40,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF6366F1),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 3),
-                                  ),
-                                  child: const Icon(Icons.business, color: Colors.white, size: 20),
-                                ),
-                              ),
-                              // Start point
-                              if (_dayLocations.isNotEmpty)
-                                Marker(
-                                  point: LatLng(_dayLocations.first['lat'], _dayLocations.first['lng']),
-                                  width: 40,
-                                  height: 40,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF22C55E),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: Colors.white, width: 3),
-                                    ),
-                                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 20),
-                                  ),
-                                ),
-                              // End point
-                              if (_dayLocations.length > 1)
-                                Marker(
-                                  point: LatLng(_dayLocations.last['lat'], _dayLocations.last['lng']),
-                                  width: 40,
-                                  height: 40,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFEF4444),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: Colors.white, width: 3),
-                                    ),
-                                    child: const Icon(Icons.stop, color: Colors.white, size: 20),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          // Trail polyline
-                          if (_dayLocations.length > 1)
-                            PolylineLayer(
-                              polylines: [
-                                Polyline(
-                                  points: _dayLocations.map((loc) => LatLng(loc['lat'] as double, loc['lng'] as double)).toList(),
-                                  color: const Color(0xFF6366F1),
-                                  strokeWidth: 3,
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-          ),
-        ),
-      ],
-    );
-  }
 }

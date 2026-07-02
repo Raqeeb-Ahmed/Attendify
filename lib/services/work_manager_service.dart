@@ -7,7 +7,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'package:http/http.dart' as http;
 import '../utils/app_config.dart';
+import 'offline_location_service.dart';
+import 'attendance_service.dart';
 
 const String _locationTaskName = 'com.attendo.locationUpdate';
 const String _heartbeatTaskName = 'com.attendo.heartbeat';
@@ -57,25 +60,20 @@ Future<void> _runLocationUpdate(
   final now = DateTime.now();
   final nowIso = now.toIso8601String();
 
-  // Update heartbeat
-  await db.collection('heartbeats').doc(uid).set({
-    'userId': uid,
-    'userName': name,
-    'email': email,
-    'lastSeen': nowIso,
-    'online': true,
-  }, SetOptions(merge: true));
-
-  // Get location - REQUIRES "Always" permission for background tracking
+  // Get location - Accept "Always" or "While in use" for background tracking
   bool locationGranted = false;
   try {
     final permission = await Geolocator.checkPermission();
-    // Only accept "Always" permission - "While in use" is insufficient for background
-    locationGranted = permission == LocationPermission.always;
-  } catch (_) {}
-
-  if (!locationGranted) {
-    debugPrint('[WorkManager] Location permission is not "Always". Skipping location update.');
+    // Accept both "Always" and "While in use" permissions
+    locationGranted = permission == LocationPermission.always || 
+                    permission == LocationPermission.whileInUse;
+    
+    if (!locationGranted) {
+      debugPrint('[WorkManager] Location permission denied. Current: $permission');
+      return;
+    }
+  } catch (e) {
+    debugPrint('[WorkManager] Error checking location permission: $e');
     return;
   }
 
@@ -100,8 +98,7 @@ Future<void> _runLocationUpdate(
   final isInside = distance <= 100;
   final status = isInside ? 'present' : 'outside';
 
-  // Update live location
-  await db.collection('locations').doc('${uid}_latest').set({
+  final Map<String, dynamic> locationData = {
     'userId': uid,
     'userName': name,
     'email': email,
@@ -111,14 +108,49 @@ Future<void> _runLocationUpdate(
     'status': status,
     'insideRadius': isInside,
     'distanceFromOffice': distance.round(),
-  });
+  };
+
+  // Check internet connectivity
+  bool isOnline = false;
+  try {
+    final response = await http
+        .get(Uri.parse('https://www.google.com'))
+        .timeout(const Duration(seconds: 5));
+    isOnline = response.statusCode == 200;
+  } catch (_) {
+    isOnline = false;
+  }
+
+  if (!isOnline) {
+    debugPrint('[WorkManager] Device offline - Caching location locally');
+    await OfflineLocationService().cacheLocation(locationData);
+    return;
+  }
+
+  // Online: Sync any cached offline locations first
+  await OfflineLocationService().syncCachedLocations(uid);
+
+  // Update heartbeat
+  await db.collection('heartbeats').doc(uid).set({
+    'userId': uid,
+    'userName': name,
+    'email': email,
+    'lastSeen': nowIso,
+    'online': true,
+  }, SetOptions(merge: true));
+
+  // Update live location
+  await db.collection('locations').doc('${uid}_latest').set(locationData);
+
+  // Add to locations log history
+  await db.collection('locations').add(locationData);
 
   // Auto check-in logic - Check via GPS
   final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   final attendanceId = '${uid}_$today';
   final attRef = db.collection('attendance').doc(attendanceId);
 
-  // Also check via WiFi (redundant detection for reliability)
+  // Check WiFi only if inside office geofence
   bool isWifiCheckIn = false;
 
   // Use Firestore transaction for atomic check-in (prevents race conditions)
@@ -133,45 +165,45 @@ Future<void> _runLocationUpdate(
         return false; // Already checked in, abort
       }
 
-      // Check WiFi if not already checked in
-      if (!isInside) {
+      // Check WiFi if inside
+      if (isInside) {
         isWifiCheckIn = await _checkWifiAndAutoCheckIn(uid, name, email, department, now, nowIso);
       }
 
-      // Determine if we should check in
-      final shouldCheckIn = isInside || isWifiCheckIn;
+      // Determine if we should check in - strict WiFi + GPS AND logic
+      final shouldCheckIn = isInside && isWifiCheckIn;
       if (!shouldCheckIn) {
-        return false; // Not at office, abort
+        return false; // Not at office or not connected to WiFi, abort
       }
 
       // Atomic write - this will fail if another process writes first
       transaction.set(attRef, {
-      'userId': uid,
-      'userName': name,
-      'email': email,
-      'department': department ?? '',
-      'date': today,
-      'checkInTime': nowIso,
-      'checkOutTime': null,
-      'location': {
-        'lat': position.latitude,
-        'lng': position.longitude,
-        'distanceFromOffice': distance.round(),
-      },
-      'atOffice': true,
-      'status': _isLateCheckIn(now) ? 'late' : 'present',
-      'sessionStatus': 'active',
-      'autoCheckedIn': true,
-      'checkInMethod': isWifiCheckIn ? 'wifi_workmanager' : 'geofence_workmanager',
-      'ipAddress': '',
-      'insideTime': 0,
-      'outsideTime': 0,
-      'offlineTime': 0,
-      'extraHours': 0,
-      'insideOfficeTime': 0,
-      'totalHours': 0.0,
-      'lastActive': nowIso,
-    });
+        'userId': uid,
+        'userName': name,
+        'email': email,
+        'department': department ?? '',
+        'date': today,
+        'checkInTime': nowIso,
+        'checkOutTime': null,
+        'location': {
+          'lat': position.latitude,
+          'lng': position.longitude,
+          'distanceFromOffice': distance.round(),
+        },
+        'atOffice': true,
+        'status': _isLateCheckIn(now) ? 'late' : 'present',
+        'sessionStatus': 'active',
+        'autoCheckedIn': true,
+        'checkInMethod': 'wifi_gps_workmanager',
+        'ipAddress': '',
+        'insideTime': 0,
+        'outsideTime': 0,
+        'offlineTime': 0,
+        'extraHours': 0,
+        'insideOfficeTime': 0,
+        'totalHours': 0.0,
+        'lastActive': nowIso,
+      });
 
       return true; // Successfully checked in
     });
@@ -183,118 +215,37 @@ Future<void> _runLocationUpdate(
   if (didCheckIn) {
     // Show local notification to inform user
     await _showAutoCheckInNotification(name);
-    debugPrint('[WorkManager] ✅ Auto check-in successful via ${isWifiCheckIn ? 'WiFi' : 'GPS'}');
+    debugPrint('[WorkManager] ✅ Auto check-in successful via WiFi & GPS');
   } else {
-    // Update time tracking for existing session (even if not checked in via WorkManager)
-    // This handles the case when app is killed but WorkManager still runs
-    await _updateTimeTrackingForExistingSession(uid, name, email, isInside, now, nowIso, attRef);
-  }
-}
-
-/// Update time tracking for existing checked-in session
-/// Called when WorkManager runs but user is already checked in
-Future<void> _updateTimeTrackingForExistingSession(
-  String uid,
-  String name,
-  String email,
-  bool isInside,
-  DateTime now,
-  String nowIso,
-  DocumentReference<Map<String, dynamic>> attRef,
-) async {
-  try {
+    // ── Auto-checkout at 6:00 PM ──────────────────────────────────────────
     final attDoc = await attRef.get();
-    if (!attDoc.exists) return;
+    if (attDoc.exists && attDoc.data()?['checkInTime'] != null) {
+      final attData = attDoc.data()!;
+      final alreadyCheckedOut = attData['checkOutTime'] != null;
+      final autoCheckoutTime = DateTime(now.year, now.month, now.day, 18, 0);
 
-    final attData = attDoc.data()!;
-    final alreadyCheckedOut = attData['checkOutTime'] != null;
-    final isAutoCheckout = attData['sessionStatus'] == 'auto-checkout';
+      if (!alreadyCheckedOut && now.isAfter(autoCheckoutTime)) {
+        final totalHours = _computeTotalHoursLocal(attData['checkInTime'], nowIso);
+        final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
+        const officeEndMins = 17 * 60 + 45;
+        final nowMins = now.hour * 60 + now.minute;
+        final overtimeMins = nowMins > officeEndMins ? nowMins - officeEndMins : 0;
 
-    // ── Auto-checkout at 6:00 PM ────────────────────────────────────────────
-    final autoCheckoutTime = DateTime(now.year, now.month, now.day, 18, 0);
-    if (!alreadyCheckedOut && now.isAfter(autoCheckoutTime)) {
-      final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
-      final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
-      const officeEndMins = 17 * 60 + 45;
-      final nowMins = now.hour * 60 + now.minute;
-      final overtimeMins = nowMins > officeEndMins ? nowMins - officeEndMins : 0;
-
-      await attRef.update({
-        'checkOutTime': nowIso,
-        'lastActive': nowIso,
-        'sessionStatus': 'auto-checkout',
-        'totalHours': totalHours,
-        'insideOfficeTime': insideOfficeMs,
-        'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
-      });
-      debugPrint('[WorkManager] Auto-checkout done. Overtime: ${overtimeMins}m');
-      return;
-    }
-
-    // ── Post-checkout overtime: user still at office after 6 PM ────────────
-    if (isAutoCheckout && alreadyCheckedOut && isInside) {
-      final lastOvertimeActive = attData['lastOvertimeActive'] as String?;
-      if (lastOvertimeActive != null) {
-        final lastDate = DateTime.parse(lastOvertimeActive);
-        final diffMins = now.difference(lastDate).inMinutes;
-        if (diffMins > 0 && diffMins < 30) {
-          await attRef.update({
-            'extraHours': (attData['extraHours'] ?? 0) + diffMins,
-            'lastOvertimeActive': nowIso,
-          });
-          debugPrint('[WorkManager] Added ${diffMins}m overtime (user still at office)');
-        } else {
-          await attRef.update({'lastOvertimeActive': nowIso});
-        }
+        await attRef.update({
+          'checkOutTime': nowIso,
+          'lastActive': nowIso,
+          'sessionStatus': 'auto-checkout',
+          'totalHours': totalHours,
+          'insideOfficeTime': insideOfficeMs,
+          'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
+        });
+        debugPrint('[WorkManager] Auto-checkout done. Overtime: ${overtimeMins}m');
       } else {
-        await attRef.update({'lastOvertimeActive': nowIso});
-      }
-      return;
-    }
-
-    // ── Normal in-session time tracking ────────────────────────────────────
-    if (alreadyCheckedOut) return;
-
-    final updates = <String, dynamic>{};
-    final lastActive = attData['lastActive'];
-
-    if (lastActive != null) {
-      final lastDate = DateTime.parse(lastActive);
-      final diffMins = now.difference(lastDate).inMinutes;
-
-      const officeStartMins = 9 * 60 + 45;
-      const officeEndMins = 17 * 60 + 45;
-      final currentMins = now.hour * 60 + now.minute;
-
-      if (diffMins > 0 && diffMins < 30) {
-        if (currentMins > officeEndMins) {
-          updates['extraHours'] = (attData['extraHours'] ?? 0) + diffMins;
-        } else if (currentMins >= officeStartMins) {
-          if (isInside) {
-            updates['insideTime'] = (attData['insideTime'] ?? 0) + diffMins;
-          } else {
-            updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
-          }
-        } else {
-          updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
-        }
-        debugPrint('[WorkManager] Added $diffMins mins to time tracking');
-      } else if (diffMins >= 30) {
-        updates['offlineTime'] = (attData['offlineTime'] ?? 0) + diffMins;
-        debugPrint('[WorkManager] Added $diffMins mins as offline time');
+        // ── Delegate ALL time-tracking arithmetic to the centralized service ──
+        await AttendanceService().updateTimeTracking(uid, now, isInside, nowIso);
+        debugPrint('[WorkManager] Delegated time tracking to centralized service');
       }
     }
-
-    updates['currentStatus'] = isInside ? 'present' : 'outside';
-    updates['atOffice'] = isInside;
-    updates['lastLocationUpdate'] = nowIso;
-    updates['lastActive'] = nowIso;
-    updates['totalHours'] = _computeTotalHours(attData['checkInTime'], nowIso);
-
-    await attRef.update(updates);
-    debugPrint('[WorkManager] Updated time tracking for existing session');
-  } catch (e) {
-    debugPrint('[WorkManager] Error updating time tracking: $e');
   }
 }
 
@@ -362,7 +313,9 @@ double _haversine(double lat1, double lon1, double lat2, double lon2) {
   return R * c;
 }
 
-double _computeTotalHours(String? checkInIso, String? checkOutIso) {
+/// Local helper used ONLY for the auto-checkout snapshot calculation.
+/// All ongoing metric tracking is handled by AttendanceService.
+double _computeTotalHoursLocal(String? checkInIso, String? checkOutIso) {
   if (checkInIso == null || checkOutIso == null) return 0.0;
   final diffMs = DateTime.parse(checkOutIso).difference(DateTime.parse(checkInIso)).inMilliseconds;
   return double.parse((diffMs / (1000 * 60 * 60)).toStringAsFixed(2));
@@ -413,8 +366,18 @@ class WorkManagerService {
   /// Call once from main() before runApp
   static Future<void> initialize() async {
     if (_initialized) return;
-    await Workmanager().initialize(callbackDispatcher);
-    _initialized = true;
+    
+    try {
+      await Workmanager().initialize(
+        callbackDispatcher,
+        isInDebugMode: kDebugMode,
+      );
+      _initialized = true;
+      debugPrint('[WorkManagerService] ✅ Initialized successfully');
+    } catch (e) {
+      debugPrint('[WorkManagerService] ❌ Initialization failed: $e');
+      rethrow;
+    }
   }
 
   /// Register periodic location tracking (every 15 min — Android minimum)
@@ -424,23 +387,40 @@ class WorkManagerService {
     required String email,
     String? department,
   }) async {
-    await Workmanager().registerPeriodicTask(
-      _locationTaskName,
-      _locationTaskName,
-      frequency: const Duration(minutes: 15),
-      constraints: Constraints(
-        networkType: NetworkType.connected,
-      ),
-      inputData: {
-        'uid': uid,
-        'name': name,
-        'email': email,
-        'department': department ?? '',
-      },
-      existingWorkPolicy: ExistingPeriodicWorkPolicy.replace,
-      backoffPolicy: BackoffPolicy.linear,
-      backoffPolicyDelay: const Duration(minutes: 5),
-    );
+    if (!_initialized) {
+      debugPrint('[WorkManagerService] ⚠️ Not initialized, call initialize() first');
+      return;
+    }
+
+    try {
+      // Cancel existing tasks first to prevent duplicates
+      await Workmanager().cancelByUniqueName(_locationTaskName);
+      
+      await Workmanager().registerPeriodicTask(
+        _locationTaskName,
+        _locationTaskName,
+        frequency: const Duration(minutes: 15),
+        constraints: Constraints(
+          networkType: NetworkType.notRequired,
+          requiresCharging: false, // Allow even when not charging
+          requiresDeviceIdle: false, // Allow even when device is in use
+        ),
+        inputData: {
+          'uid': uid,
+          'name': name,
+          'email': email,
+          'department': department ?? '',
+        },
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.replace,
+        backoffPolicy: BackoffPolicy.linear,
+        backoffPolicyDelay: const Duration(minutes: 5),
+        initialDelay: const Duration(minutes: 1), // Start after 1 minute
+      );
+      
+      debugPrint('[WorkManagerService] ✅ Location task registered for $name');
+    } catch (e) {
+      debugPrint('[WorkManagerService] ❌ Failed to register location task: $e');
+    }
   }
 
   /// Register a one-off heartbeat task (for immediate execution)

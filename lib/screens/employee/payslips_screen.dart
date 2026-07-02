@@ -52,6 +52,8 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
   }
 
   void _showPayslipDetail(Map<String, dynamic> payslip) {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -170,8 +172,8 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                           const SizedBox(height: 8),
                           _buildInfoRow('Email', user?.email ?? ''),
                           const SizedBox(height: 8),
-                          _buildInfoRow('Payment Date', payslip['processedAt'] != null 
-                              ? DateFormat('MMM dd, yyyy').format((payslip['processedAt'] as Timestamp).toDate())
+                          _buildInfoRow('Payment Date', payslip['processedAt'] != null && _parseDateTime(payslip['processedAt']) != null
+                              ? DateFormat('MMM dd, yyyy').format(_parseDateTime(payslip['processedAt'])!)
                               : 'N/A'),
                         ],
                       ),
@@ -179,67 +181,128 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                     const SizedBox(height: 24),
 
                     // Earnings & Deductions
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'EARNINGS',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF94A3B8),
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildAmountRow('Base Salary', payslip['baseSalary'] ?? 0, false),
-                              _buildAmountRow('Allowances', payslip['allowances'] ?? 0, false),
-                              const Divider(height: 24),
-                              _buildAmountRow('Gross Pay', (payslip['baseSalary'] ?? 0) + (payslip['allowances'] ?? 0), false, isBold: true),
-                            ],
+                    if (isMobile) ...[
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'EARNINGS',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF94A3B8),
+                              letterSpacing: 1,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 24),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'DEDUCTIONS',
+                          const SizedBox(height: 12),
+                          _buildAmountRow('Base Salary', _parseNum(payslip['baseSalary']), false),
+                          _buildAmountRow('Allowances', _parseNum(payslip['allowances']), false),
+                          const Divider(height: 24),
+                          _buildAmountRow('Gross Pay', _parseNum(payslip['baseSalary']) + _parseNum(payslip['allowances']), false, isBold: true),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'DEDUCTIONS',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF94A3B8),
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (_parseNum(payslip['tax']) > 0)
+                            _buildAmountRow('Income Tax', _parseNum(payslip['tax']), true),
+                          if (_parseNum(payslip['deductions']) > 0)
+                            _buildAmountRow('Other', _parseNum(payslip['deductions']), true),
+                          if (_parseNum(payslip['advance']) > 0)
+                            _buildAmountRow('Advance', _parseNum(payslip['advance']), true),
+                          if (_parseNum(payslip['tax']) == 0 && _parseNum(payslip['deductions']) == 0 && _parseNum(payslip['advance']) == 0)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                'No deductions',
                                 style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF94A3B8),
-                                  letterSpacing: 1,
+                                  fontSize: 13,
+                                  color: Colors.grey.shade400,
+                                  fontStyle: FontStyle.italic,
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              if ((payslip['tax'] ?? 0) > 0)
-                                _buildAmountRow('Income Tax', payslip['tax'] ?? 0, true),
-                              if ((payslip['deductions'] ?? 0) > 0)
-                                _buildAmountRow('Other', payslip['deductions'] ?? 0, true),
-                              if ((payslip['advance'] ?? 0) > 0)
-                                _buildAmountRow('Advance', payslip['advance'] ?? 0, true),
-                              if ((payslip['tax'] ?? 0) == 0 && (payslip['deductions'] ?? 0) == 0 && (payslip['advance'] ?? 0) == 0)
-                                Text(
-                                  'No deductions',
+                            ),
+                          const Divider(height: 24),
+                          _buildAmountRow('Total Deductions', _parseNum(payslip['tax']) + _parseNum(payslip['deductions']) + _parseNum(payslip['advance']), true, isBold: true),
+                        ],
+                      ),
+                    ] else ...[
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'EARNINGS',
                                   style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade400,
-                                    fontStyle: FontStyle.italic,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF94A3B8),
+                                    letterSpacing: 1,
                                   ),
                                 ),
-                              const Divider(height: 24),
-                              _buildAmountRow('Total Deductions', (payslip['tax'] ?? 0) + (payslip['deductions'] ?? 0) + (payslip['advance'] ?? 0), true, isBold: true),
-                            ],
+                                const SizedBox(height: 12),
+                                _buildAmountRow('Base Salary', _parseNum(payslip['baseSalary']), false),
+                                _buildAmountRow('Allowances', _parseNum(payslip['allowances']), false),
+                                const Divider(height: 24),
+                                _buildAmountRow('Gross Pay', _parseNum(payslip['baseSalary']) + _parseNum(payslip['allowances']), false, isBold: true),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'DEDUCTIONS',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF94A3B8),
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                if (_parseNum(payslip['tax']) > 0)
+                                  _buildAmountRow('Income Tax', _parseNum(payslip['tax']), true),
+                                if (_parseNum(payslip['deductions']) > 0)
+                                  _buildAmountRow('Other', _parseNum(payslip['deductions']), true),
+                                if (_parseNum(payslip['advance']) > 0)
+                                  _buildAmountRow('Advance', _parseNum(payslip['advance']), true),
+                                if (_parseNum(payslip['tax']) == 0 && _parseNum(payslip['deductions']) == 0 && _parseNum(payslip['advance']) == 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      'No deductions',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey.shade400,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                const Divider(height: 24),
+                                _buildAmountRow('Total Deductions', _parseNum(payslip['tax']) + _parseNum(payslip['deductions']) + _parseNum(payslip['advance']), true, isBold: true),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 24),
 
                     // Net Salary
@@ -284,7 +347,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                             ],
                           ),
                           Text(
-                            'PKR ${_formatCurrency(payslip['netSalary'] ?? 0)}',
+                            'PKR ${_formatCurrency(_parseNum(payslip['netSalary']))}',
                             style: const TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
@@ -422,19 +485,44 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
     return NumberFormat('#,##0').format(amount);
   }
 
+  DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    if (value is DateTime) {
+      return value;
+    }
+    return null;
+  }
+
+  num _parseNum(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value;
+    if (value is String) {
+      return num.tryParse(value) ?? 0;
+    }
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FC),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         shadowColor: Colors.black.withValues(alpha: 0.04),
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
-          onPressed: () => Navigator.pop(context),
-          tooltip: 'Menu',
-        ),
+        automaticallyImplyLeading: false,
+        leading: isMobile ? const SizedBox() : null,
         title: const Text(
           'My Payslips',
           style: TextStyle(
@@ -491,11 +579,11 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: isMobile ? 1 : 2,
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16,
-                          childAspectRatio: 0.85,
+                          childAspectRatio: isMobile ? 1.35 : 0.85,
                         ),
                         itemCount: _payslips.length,
                         itemBuilder: (context, index) {
@@ -510,6 +598,8 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
   }
 
   Widget _buildPayslipCard(Map<String, dynamic> payslip) {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    
     return InkWell(
       onTap: () => _showPayslipDetail(payslip),
       child: Container(
@@ -530,25 +620,25 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
+              padding: EdgeInsets.all(isMobile ? 12 : 16),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
                   colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                 ),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: EdgeInsets.all(isMobile ? 8 : 10),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.receipt_long,
                       color: Colors.white,
-                      size: 24,
+                      size: isMobile ? 20 : 24,
                     ),
                   ),
                   const Spacer(),
@@ -574,22 +664,22 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
             // Content
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(isMobile ? 12 : 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       _formatMonth(payslip['month']),
-                      style: const TextStyle(
-                        fontSize: 16,
+                      style: TextStyle(
+                        fontSize: isMobile ? 15 : 16,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E293B),
+                        color: const Color(0xFF1E293B),
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      payslip['processedAt'] != null
-                          ? 'Processed ${DateFormat('MMM dd').format((payslip['processedAt'] as Timestamp).toDate())}'
+                      payslip['processedAt'] != null && _parseDateTime(payslip['processedAt']) != null
+                          ? 'Processed ${DateFormat('MMM dd').format(_parseDateTime(payslip['processedAt'])!)}'
                           : 'Processing...',
                       style: const TextStyle(
                         fontSize: 11,
@@ -598,7 +688,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                     ),
                     const Spacer(),
                     const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                    const SizedBox(height: 12),
+                    SizedBox(height: isMobile ? 8 : 12),
                     const Text(
                       'NET SALARY',
                       style: TextStyle(
@@ -622,11 +712,11 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                           ),
                         ),
                         Text(
-                          _formatCurrency(payslip['netSalary'] ?? 0),
-                          style: const TextStyle(
-                            fontSize: 20,
+                          _formatCurrency(_parseNum(payslip['netSalary'])),
+                          style: TextStyle(
+                            fontSize: isMobile ? 18 : 20,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
+                            color: const Color(0xFF1E293B),
                           ),
                         ),
                       ],
@@ -638,7 +728,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
 
             // Footer
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(isMobile ? 10 : 12),
               decoration: const BoxDecoration(
                 color: Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),

@@ -78,13 +78,7 @@ class AttendanceService {
       final now = DateTime.now();
       final nowIso = now.toIso8601String();
 
-      // Prevent duplicate check-in
-      final existing = await _db.collection('attendance').doc(attendanceId).get();
-      if (existing.exists) {
-        return {'id': existing.id, ...existing.data()!};
-      }
-
-      // Close any previous unclosed sessions
+      // Close any previous unclosed sessions first
       await _closeStaleSession(userId);
 
       // Fetch user's IP
@@ -124,7 +118,7 @@ class AttendanceService {
       final isIpValid = userIp == officeIP && officeIP.isNotEmpty;
       final isAtOffice = isLocationValid || isIpValid;
 
-      return _processCheckIn(
+      return _processCheckInWithTransaction(
         userId: userId,
         userName: userName,
         department: department ?? 'N/A',
@@ -143,8 +137,8 @@ class AttendanceService {
     }
   }
 
-  // ── Process Check-In ──
-  Future<Map<String, dynamic>> _processCheckIn({
+  // ── Process Check-In with Transaction (Race Condition Safe) ──
+  Future<Map<String, dynamic>?> _processCheckInWithTransaction({
     required String userId,
     required String userName,
     required String department,
@@ -156,55 +150,67 @@ class AttendanceService {
     required String dateStr,
     required String nowIso,
   }) async {
-    final now = DateTime.now();
-    final currentMinutes = now.hour * 60 + now.minute;
+    return await _db.runTransaction<Map<String, dynamic>?>((transaction) async {
+      final docRef = _db.collection('attendance').doc(attendanceId);
+      final docSnap = await transaction.get(docRef);
 
-    // Determine status: present (before 9:45) or late (after 9:45)
-    String finalStatus = 'outside';
-    if (isAtOffice) {
-      finalStatus = currentMinutes <= officeStartMinutes ? 'present' : 'late';
-    }
+      // Check if already exists (duplicate prevention)
+      if (docSnap.exists) {
+        return {'id': docSnap.id, ...docSnap.data()!};
+      }
 
-    final data = {
-      'userId': userId,
-      'userName': userName,
-      'email': email,
-      'department': department,
-      'date': dateStr,
-      'checkInTime': nowIso,
-      'checkOutTime': null,
-      'status': finalStatus,
-      'sessionStatus': 'active',
-      'ipAddress': ipAddress,
-      'location': location,
-      'atOffice': isAtOffice,
-      'insideTime': 0,
-      'outsideTime': 0,
-      'extraHours': 0,
-      'offlineTime': 0,
-      'insideOfficeTime': 0,
-      'totalHours': 0.0,
-      'lastActive': nowIso,
-    };
+      final now = DateTime.now();
+      final currentMinutes = now.hour * 60 + now.minute;
 
-    await _db.collection('attendance').doc(attendanceId).set(data);
+      // Determine status: present (before 9:45) or late (after 9:45)
+      String finalStatus = 'outside';
+      if (isAtOffice) {
+        finalStatus = currentMinutes <= officeStartMinutes ? 'present' : 'late';
+      }
 
-    // Store initial location
-    if (location != null) {
-      await _db.collection('locations').add({
+      final data = {
         'userId': userId,
-        'lat': location['lat'],
-        'lng': location['lng'],
-        'distanceFromOffice': location['distanceFromOffice'] ?? 0,
-        'timestamp': nowIso,
+        'userName': userName,
+        'email': email,
+        'department': department,
+        'date': dateStr,
+        'checkInTime': nowIso,
+        'checkOutTime': null,
         'status': finalStatus,
-        'insideRadius': isAtOffice,
-      });
-    }
+        'sessionStatus': 'active',
+        'ipAddress': ipAddress,
+        'location': location,
+        'atOffice': isAtOffice,
+        'insideTime': 0,
+        'outsideTime': 0,
+        'extraHours': 0,
+        'offlineTime': 0,
+        'insideOfficeTime': 0,
+        'totalHours': 0.0,
+        'lastActive': nowIso,
+      };
 
-    return data;
+      transaction.set(docRef, data);
+
+      // Store initial location in same transaction for consistency
+      if (location != null) {
+        final locationRef = _db.collection('locations').doc();
+        transaction.set(locationRef, {
+          'userId': userId,
+          'lat': location['lat'],
+          'lng': location['lng'],
+          'distanceFromOffice': location['distanceFromOffice'] ?? 0,
+          'timestamp': nowIso,
+          'status': finalStatus,
+          'insideRadius': isAtOffice,
+        });
+      }
+
+      return data;
+    });
   }
 
+  
   String _parseIpResponse(String body) {
     try {
       final start = body.indexOf('"ip":"') + 6;
@@ -247,6 +253,9 @@ class AttendanceService {
         debugPrint("RTDB presence update failed: $e");
       }
 
+      // Note: Location tracking continues even after check-out for continuous monitoring
+      // Only heartbeat is stopped, location tracking keeps running via foreground service
+      
       return fetchTodayAttendance(userId);
     } catch (e) {
       throw AppException(getFirebaseErrorMessage(e));
@@ -497,55 +506,101 @@ class AttendanceService {
     }
   }
 
-  /// Public method for external services to update time tracking
-  /// Called by BackgroundLocationService, ForegroundTrackingService, WorkManager
-  Future<void> updateTimeTracking(String userId, DateTime now, bool isInside, String nowIso) async {
-    return _updateTimeTrackingInternal(userId, now, isInside, nowIso);
+  /// Public method for external services to update time tracking.
+  /// Called by BackgroundLocationService, ForegroundTrackingService, WorkManager,
+  /// and OfflineLocationService (for chronological offline playback).
+  ///
+  /// [overrideAttendanceDate] – optional date string (yyyy-MM-dd) to target
+  /// a specific day's attendance document (used when replaying cached offline
+  /// locations that may belong to a previous day).
+  Future<void> updateTimeTracking(String userId, DateTime now, bool isInside, String nowIso, {String? overrideAttendanceDate}) async {
+    return _updateTimeTrackingInternal(userId, now, isInside, nowIso, overrideAttendanceDate: overrideAttendanceDate);
   }
 
-  Future<void> _updateTimeTrackingInternal(String userId, DateTime now, bool isInside, String nowIso) async {
-    final attendanceId = getTodayAttendanceId(userId);
+  /// ─── Centralised Time-Tracking State Machine ─────────────────────────────
+  /// ALL time-tracking arithmetic lives here. No other file should duplicate
+  /// these calculations. Both the ForegroundTrackingService isolate and the
+  /// WorkManager isolate call this method via [updateTimeTracking].
+  ///
+  /// Metric definitions (all stored in minutes except totalHours):
+  /// • totalHours   – frozen at checkout (checkOutTime − checkInTime).
+  ///                  While active: now − checkInTime (in decimal hours).
+  /// • insideTime   – minutes inside the 100 m geofence during work hours
+  ///                  OR before 9:45 AM (early arrivals count).
+  /// • outsideTime  – minutes outside the geofence before 5:45 PM while
+  ///                  the session is still active (not checked out).
+  /// • extraHours   – overtime minutes. Accumulated when the user is inside
+  ///                  the geofence AFTER 5:45 PM, or when they remain inside
+  ///                  the geofence AFTER checking out.
+  /// • offlineTime  – tracking gaps ≥ 20 minutes (unified threshold).
+  Future<void> _updateTimeTrackingInternal(String userId, DateTime now, bool isInside, String nowIso, {String? overrideAttendanceDate}) async {
+    // Resolve the correct attendance document
+    final String attendanceId;
+    if (overrideAttendanceDate != null) {
+      attendanceId = '${userId}_$overrideAttendanceDate';
+    } else {
+      attendanceId = getTodayAttendanceId(userId);
+    }
+
     final attRef = _db.collection('attendance').doc(attendanceId);
     final attSnap = await attRef.get();
 
     if (!attSnap.exists) return;
 
     final attData = attSnap.data()!;
-    if (attData['checkOutTime'] != null || attData['sessionStatus'] != 'active') return;
+    // If there is no checkInTime yet, nothing to track against.
+    if (attData['checkInTime'] == null) return;
 
+    final alreadyCheckedOut = attData['checkOutTime'] != null;
     final currentMinutes = now.hour * 60 + now.minute;
     final updates = <String, dynamic>{};
 
+    // ── Interval-based metric accumulation ──────────────────────────────────
     if (attData['lastActive'] != null) {
       final lastDate = DateTime.parse(attData['lastActive']);
       final diffMins = now.difference(lastDate).inMinutes;
 
-      // Only add if reasonable (< 15 mins gap means user was active)
-      if (diffMins > 0 && diffMins < 15) {
-        if (currentMinutes > officeEndMinutes) {
-          // After 5:45 PM = extra hours
-          updates['extraHours'] = (attData['extraHours'] ?? 0) + diffMins;
-        } else if (currentMinutes >= officeStartMinutes && currentMinutes <= officeEndMinutes) {
-          // Office hours: track inside/outside
-          if (isInside) {
-            updates['insideTime'] = (attData['insideTime'] ?? 0) + diffMins;
+      if (diffMins > 0 && diffMins < 20) {
+        // ── Active tracking interval (< 20 min gap) ───────────────────────
+        if (isInside) {
+          if (alreadyCheckedOut || currentMinutes > officeEndMinutes) {
+            // Inside geofence + (checked out OR after 5:45 PM) → overtime
+            updates['extraHours'] = (attData['extraHours'] ?? 0) + diffMins;
           } else {
+            // Inside geofence during or before office hours → insideTime
+            // This intentionally includes early arrivals (before 9:45 AM)
+            updates['insideTime'] = (attData['insideTime'] ?? 0) + diffMins;
+          }
+        } else {
+          // Outside geofence
+          if (!alreadyCheckedOut && currentMinutes <= officeEndMinutes) {
+            // Outside during active session within work hours → outsideTime
             updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
           }
-        } else if (currentMinutes < officeStartMinutes) {
-          // Before 9:45 AM = outside time
-          updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
+          // Outside after checkout or after 5:45 PM → not counted at all
         }
-      } else if (diffMins >= 15) {
-        // Gap > 15 mins = offline time
+      } else if (diffMins >= 20) {
+        // ── Offline gap (≥ 20 minutes) ─────────────────────────────────────
         updates['offlineTime'] = (attData['offlineTime'] ?? 0) + diffMins;
       }
+      // diffMins == 0 → duplicate timestamp, skip silently
     }
 
-    // Recalculate derived fields
+    // ── Recalculate derived fields ──────────────────────────────────────────
     final newInsideTime = updates['insideTime'] ?? attData['insideTime'] ?? 0;
     updates['insideOfficeTime'] = (newInsideTime as int) * 60 * 1000; // ms
-    updates['totalHours'] = _computeTotalHours(attData['checkInTime'], nowIso);
+
+    // totalHours: freeze after checkout — use checkOutTime, not nowIso
+    if (alreadyCheckedOut) {
+      updates['totalHours'] = _computeTotalHours(attData['checkInTime'], attData['checkOutTime']);
+    } else {
+      updates['totalHours'] = _computeTotalHours(attData['checkInTime'], nowIso);
+    }
+
+    // Update location status metadata
+    updates['currentStatus'] = isInside ? 'present' : 'outside';
+    updates['atOffice'] = isInside;
+    updates['lastLocationUpdate'] = nowIso;
     updates['lastActive'] = nowIso;
 
     await attRef.update(updates);

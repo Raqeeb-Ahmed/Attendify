@@ -3,6 +3,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
+import '../utils/app_config.dart';
 import 'attendance_service.dart';
 
 /// WiFi Auto Check-in Service
@@ -25,16 +27,14 @@ class WiFiAutoCheckInService {
   String? _currentEmail;
   String? _currentDepartment;
 
+  bool get isMonitoring => _isMonitoring;
   bool _isMonitoring = false;
   bool _hasAutoCheckedIn = false;
   String? _lastKnownWifiName;
 
   /// Office WiFi identifiers - can be SSID name or BSSID (MAC address)
-  /// Add your office WiFi identifiers here
-  static const List<String> _officeWifiIdentifiers = [
-    // Add your office WiFi SSID names here (case insensitive)
-    // Examples: 'Office-WiFi', 'Company-Network', 'XYZ-Corp'
-  ];
+  /// Uses configured office WiFi names from AppConfig
+  static List<String> get _officeWifiIdentifiers => AppConfig.officeWifiNames;
 
   /// Start monitoring WiFi connection for auto check-in
   void startMonitoring(
@@ -67,8 +67,8 @@ class WiFiAutoCheckInService {
       _onConnectivityChanged(results, wifiNames);
     });
 
-    // Also check periodically (every 30 seconds) as backup
-    _wifiCheckTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+    // Check more frequently for faster detection (every 10 seconds)
+    _wifiCheckTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
       await _checkWifiAndAutoCheckIn(wifiNames);
     });
 
@@ -125,6 +125,37 @@ class WiFiAutoCheckInService {
       final isOfficeWifi = _isOfficeWifi(wifiName, bssid, officeWifiNames);
 
       if (isOfficeWifi && !_hasAutoCheckedIn) {
+        // AND Condition: Must also be within GPS radius of the office
+        try {
+          // Check location permission first
+          final permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) {
+            debugPrint('[WiFiAutoCheckInService] Location permission denied. Cannot verify geofence proximity.');
+            return;
+          }
+
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+          );
+
+          final distance = _attendanceService.getDistanceFromLatLonInM(
+            AppConfig.officeLat,
+            AppConfig.officeLng,
+            position.latitude,
+            position.longitude,
+          );
+
+          final isInsideRadius = distance <= 100;
+
+          if (!isInsideRadius) {
+            debugPrint('[WiFiAutoCheckInService] Connected to office WiFi but outside geofence radius (${distance.round()}m). Skipping check-in.');
+            return;
+          }
+        } catch (gpsError) {
+          debugPrint('[WiFiAutoCheckInService] Error fetching GPS location for WiFi check-in: $gpsError');
+          return; // Skip check-in if GPS verification fails
+        }
+
         // Check if already checked in today
         final hasCheckedIn = await _hasAlreadyCheckedIn();
 

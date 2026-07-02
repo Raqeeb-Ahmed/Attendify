@@ -67,7 +67,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
-  static const int _notificationsIndex = 10;
+  static const int _notificationsIndex = 11;
   int _prevNavIndex = 0;
 
   void _openNotifications() {

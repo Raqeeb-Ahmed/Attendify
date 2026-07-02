@@ -6,6 +6,9 @@ import '../utils/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'location_service.dart';
 import 'attendance_service.dart';
+import 'wifi_auto_checkin_service.dart';
+import 'offline_location_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 /// Background location service - Web App Compatible
 /// Uses locations collection (like web) with auto check-in on geofence entry
@@ -52,8 +55,8 @@ class BackgroundLocationService {
     // Immediate first update
     _updateLocation();
 
-    // Then every 60 seconds (matching web heartbeat)
-    _timer = Timer.periodic(const Duration(seconds: 60), (_) {
+    // Then every 30 seconds for faster geofence detection
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
       _updateLocation();
     });
 
@@ -88,11 +91,11 @@ class BackgroundLocationService {
       final doc = await _db.collection('attendance').doc(docId).get();
       if (doc.exists) {
         final data = doc.data();
-        if (data != null && data['checkOutTime'] == null && data['sessionStatus'] == 'active') {
-          // Already checked in and active
-          _autoCheckedIn = true;
+        if (data != null) {
+          // Track attendance status regardless of check-out for continuous monitoring
+          _autoCheckedIn = data['checkOutTime'] == null && data['sessionStatus'] == 'active';
           _wasInsideRadius = data['atOffice'] == true;
-          debugPrint('[BackgroundLocationService] Found existing active attendance');
+          debugPrint('[BackgroundLocationService] Found existing attendance - tracking continues regardless of check-out status');
         }
       }
     } catch (e) {
@@ -121,22 +124,14 @@ class BackgroundLocationService {
       final now = DateTime.now();
       final nowIso = now.toIso8601String();
 
-      // Update heartbeat (like web app)
-      await _db.collection('heartbeats').doc(_currentUid).set({
-        'userId': _currentUid,
-        'userName': _currentName,
-        'email': _currentEmail,
-        'lastSeen': nowIso,
-        'online': isOnline,
-      }, SetOptions(merge: true));
-
-      if (!isOnline) {
-        debugPrint('[BackgroundLocationService] Offline - heartbeat only');
+      // Get current position (can be done offline via GPS sensors)
+      Position position;
+      try {
+        position = await _locationService.getCurrentLocation();
+      } catch (e) {
+        debugPrint('[BackgroundLocationService] Error getting current position: $e');
         return;
       }
-
-      // Get current position
-      final position = await _locationService.getCurrentLocation();
 
       // Calculate distance from office
       final distance = _getDistance(
@@ -148,34 +143,9 @@ class BackgroundLocationService {
       final isInsideRadius = distance <= _radiusMeters;
 
       // Determine status (matching web app)
-      String locationStatus;
-      if (isInsideRadius) {
-        locationStatus = 'present';
-      } else {
-        locationStatus = 'outside';
-      }
+      String locationStatus = isInsideRadius ? 'present' : 'outside';
 
-      // AUTO CHECK-IN: If entered radius and not checked in yet
-      if (isInsideRadius && !_wasInsideRadius && !_autoCheckedIn) {
-        await _performAutoCheckIn(position.latitude, position.longitude);
-      }
-
-      _wasInsideRadius = isInsideRadius;
-
-      // Update locations collection (web app compatible)
-      await _db.collection('locations').add({
-        'userId': _currentUid,
-        'userName': _currentName,
-        'lat': position.latitude,
-        'lng': position.longitude,
-        'timestamp': nowIso,
-        'status': locationStatus,
-        'insideRadius': isInsideRadius,
-        'distanceFromOffice': distance.round(),
-      });
-
-      // Also update live location document for real-time tracking
-      await _db.collection('locations').doc('${_currentUid}_latest').set({
+      final Map<String, dynamic> locationData = {
         'userId': _currentUid,
         'userName': _currentName,
         'email': _currentEmail,
@@ -185,13 +155,49 @@ class BackgroundLocationService {
         'status': locationStatus,
         'insideRadius': isInsideRadius,
         'distanceFromOffice': distance.round(),
-      });
+      };
+
+      if (!isOnline) {
+        debugPrint('[BackgroundLocationService] Device offline - Caching location locally');
+        await OfflineLocationService().cacheLocation(locationData);
+        return;
+      }
+
+      // Online: Sync any cached offline locations first
+      await OfflineLocationService().syncCachedLocations(_currentUid!);
+
+      // Update heartbeat (like web app)
+      await _db.collection('heartbeats').doc(_currentUid).set({
+        'userId': _currentUid,
+        'userName': _currentName,
+        'email': _currentEmail,
+        'lastSeen': nowIso,
+        'online': isOnline,
+      }, SetOptions(merge: true));
+
+      // AUTO CHECK-IN (AND Condition): If entered radius, connected to WiFi, and not checked in yet
+      if (isInsideRadius && !_autoCheckedIn) {
+        final isOnOfficeWifi = await WiFiAutoCheckInService().isConnectedToOfficeWifi(AppConfig.officeWifiNames);
+        if (isOnOfficeWifi) {
+          await _performAutoCheckIn(position.latitude, position.longitude);
+        } else {
+          debugPrint('[BackgroundLocationService] Inside office radius but not connected to office WiFi. Skipping auto check-in.');
+        }
+      }
+
+      _wasInsideRadius = isInsideRadius;
+
+      // Update locations collection (web app compatible)
+      await _db.collection('locations').add(locationData);
+
+      // Also update live location document for real-time tracking
+      await _db.collection('locations').doc('${_currentUid}_latest').set(locationData);
 
       // Update time tracking on attendance (if checked in)
       await _attendanceService.updateTimeTracking(_currentUid!, now, isInsideRadius, nowIso);
 
       debugPrint(
-        '[BackgroundLocationService] Updated: $locationStatus (${distance.toStringAsFixed(0)}m)${isInsideRadius && !_autoCheckedIn ? ' - Auto check-in ready' : ''}',
+        '[BackgroundLocationService] Updated: $locationStatus (${distance.toStringAsFixed(0)}m)${isInsideRadius && !_autoCheckedIn ? ' - Auto check-in ready (waiting for WiFi)' : ''}',
       );
     } catch (e) {
       debugPrint('[BackgroundLocationService] Error: $e');

@@ -69,6 +69,7 @@ class AuthService {
       await ForegroundTrackingService.stop();
       await _googleSignIn.signOut();
       await _auth.signOut();
+
       debugPrint("User signed out");
     } catch (e) {
       debugPrint("Sign out error: $e");

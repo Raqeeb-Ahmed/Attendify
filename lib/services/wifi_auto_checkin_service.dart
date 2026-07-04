@@ -38,12 +38,12 @@ class WiFiAutoCheckInService {
 
   /// Start monitoring WiFi connection for auto check-in
   void startMonitoring(
-    String uid,
-    String name,
-    String email, {
-    String? department,
-    List<String>? customWifiNames,
-  }) {
+      String uid,
+      String name,
+      String email, {
+        String? department,
+        List<String>? customWifiNames,
+      }) {
     if (_isMonitoring) return;
     _isMonitoring = true;
 
@@ -94,9 +94,9 @@ class WiFiAutoCheckInService {
 
   /// Handle connectivity change events
   Future<void> _onConnectivityChanged(
-    List<ConnectivityResult> results,
-    List<String> wifiNames,
-  ) async {
+      List<ConnectivityResult> results,
+      List<String> wifiNames,
+      ) async {
     // Check if connected to WiFi
     final isWifi = results.contains(ConnectivityResult.wifi);
 

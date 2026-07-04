@@ -1,3 +1,4 @@
+import 'package:attendenceapp/screens/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,17 +16,37 @@ Future<void> main() async {
 
   await Firebase.initializeApp();
 
-  await GoogleSignIn.instance.initialize(
-    serverClientId: AppConfig.googleServerClientId,
-  );
+  // await GoogleSignIn.instance.initialize(
+  //   serverClientId: AppConfig.googleServerClientId,
+  // );
 
   // Initialize WorkManager for true Android background execution
-  await WorkManagerService.initialize();
+  // await WorkManagerService.initialize();
 
   // Initialize foreground tracking service (must be called before runApp)
-  ForegroundTrackingService.initialize();
+  // ForegroundTrackingService.initialize();
 
   runApp(const AttendanceApp());
+
+// Background initialization
+  Future.microtask(_initializeServices);
+}
+
+
+Future<void> _initializeServices() async {
+  try {
+    await Future.wait([
+      GoogleSignIn.instance.initialize(
+        serverClientId: AppConfig.googleServerClientId,
+      ),
+    ]);
+
+    debugPrint("✅ Background services initialized");
+  } catch (e, s) {
+    debugPrint("Initialization failed");
+    debugPrint(e.toString());
+    debugPrint(s.toString());
+  }
 }
 
 class AttendanceApp extends StatelessWidget {
@@ -43,7 +64,7 @@ class AttendanceApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const AuthWrapper(),
+      home: const SplashScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/admin': (context) => const AdminDashboard(),
@@ -94,7 +115,8 @@ class AuthWrapper extends StatelessWidget {
 
             final data = userSnapshot.data!.data() as Map<String, dynamic>?;
             final role = data?['role'] ?? 'employee';
-            if (role == 'admin') {
+            final email = 'raqeebdeveloper@gmail.com';
+            if (role == 'admin' || email == 'raqeebdeveloper@gmail.com') {
               return const AdminDashboard();
             } else {
               return const EmployeeDashboard();

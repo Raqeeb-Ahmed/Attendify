@@ -278,10 +278,11 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
-                      Text('$email · $dept', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      Text('$email · $dept', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                     ],
                   ),
                 ),
+
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -304,20 +305,44 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
             const SizedBox(height: 12),
             Row(
               children: [
-                _kpiChip(Icons.calendar_today_rounded, '${records.length} Days', const Color(0xFF6366F1)),
-                const SizedBox(width: 8),
-                _kpiChip(Icons.warning_amber_rounded, '$late Late', const Color(0xFFF59E0B)),
-                const SizedBox(width: 8),
-                _kpiChip(Icons.error_outline_rounded, '$warnings Warnings', const Color(0xFFDC2626)),
+                Flexible(
+                  child: _kpiChip(
+                    Icons.calendar_today_rounded,
+                    '${records.length} Days',
+                    const Color(0xFF6366F1),
+                  ),
+                ),
+                const SizedBox(width: 6),
+
+                Flexible(
+                  child: _kpiChip(
+                    Icons.warning_amber_rounded,
+                    '$late Late',
+                    const Color(0xFFF59E0B),
+                  ),
+                ),
+                const SizedBox(width: 6),
+
+                Flexible(
+                  child: _kpiChip(
+                    Icons.error_outline_rounded,
+                    '$warnings Warnings',
+                    const Color(0xFFDC2626),
+                  ),
+                ),
+
                 const Spacer(),
+
                 TextButton.icon(
                   onPressed: () => _showAppraisalDialog(ctx, emp),
-                  icon: const Icon(Icons.rate_review_outlined, size: 16),
-                  label: const Text('Appraise', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  style: TextButton.styleFrom(foregroundColor: const Color(0xFF6366F1)),
+                  icon: const Icon(Icons.rate_review_outlined, size: 12),
+                  label: const Text(
+                    'Appraise',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
-            ),
+            )
           ],
         ),
       ),
@@ -326,7 +351,7 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
 
   Widget _kpiChip(IconData icon, String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
@@ -335,10 +360,20 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+          const SizedBox(width: 8),
+
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ),
         ],
-      ),
+      )
     );
   }
 }

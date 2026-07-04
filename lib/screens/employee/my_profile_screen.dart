@@ -18,6 +18,8 @@ class MyProfileScreen extends StatelessWidget {
             .doc(user?.uid)
             .snapshots(),
         builder: (context, snapshot) {
+
+
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -30,6 +32,16 @@ class MyProfileScreen extends StatelessWidget {
           if (userData == null) {
             return const Center(child: Text('User data not found'));
           }
+
+          final designation =
+          (userData['designation']?.toString().trim().isNotEmpty ?? false)
+              ? userData['designation']
+              : 'Employee';
+
+          final department =
+          (userData['department']?.toString().trim().isNotEmpty ?? false)
+              ? userData['department']
+              : 'General';
 
           return CustomScrollView(
             slivers: [
@@ -106,7 +118,7 @@ class MyProfileScreen extends StatelessWidget {
 
                       // Role & Department
                       Text(
-                        '${userData['designation'] ?? 'Employee'} • ${userData['department'] ?? 'General'}',
+                        '$designation • $department',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade600,

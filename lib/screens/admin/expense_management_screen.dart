@@ -57,9 +57,22 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                     : FirebaseFirestore.instance
                         .collection('expenses')
                         .where('status', isEqualTo: _filterStatus)
-                        .orderBy('createdAt', descending: true)
+                        // .orderBy('createdAt', descending: true)
                         .snapshots(),
                 builder: (ctx, snap) {
+                  print("Filter: $_filterStatus");
+                  print("Docs: ${snap.data?.docs.length}");
+
+                  if (snap.hasError) {
+                    return Center(
+                      child: Text(
+                        snap.error.toString(),
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  }
+
+
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)));
                   }
@@ -150,10 +163,17 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
     final amount = (d['amount'] as num?)?.toDouble() ?? 0;
     final description = d['description'] as String? ?? '';
     final status = d['status'] as String? ?? 'pending';
-    final createdAt = d['createdAt'] as String?;
-    final dateStr = createdAt != null
-        ? DateFormat('dd MMM yyyy').format(DateTime.parse(createdAt).toLocal())
-        : '';
+    final createdAt = d['createdAt'];
+
+    String dateStr = '';
+
+    if (createdAt is Timestamp) {
+      dateStr = DateFormat('dd MMM yyyy').format(createdAt.toDate());
+    } else if (createdAt is String && createdAt.isNotEmpty) {
+      dateStr = DateFormat('dd MMM yyyy')
+          .format(DateTime.parse(createdAt).toLocal());
+    }
+
     final fmt = NumberFormat('#,##0.00', 'en_US');
 
     Color statusColor;

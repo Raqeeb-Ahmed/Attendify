@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../services/auth_service.dart';
+
 class EmployeeSidebar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onItemSelected;
@@ -96,6 +98,26 @@ class EmployeeSidebar extends StatelessWidget {
                       ),
                       Text('Employee', style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
                     ],
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () async {
+                    await AuthService().signOut();
+
+                    if (!context.mounted) return;
+
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/login',
+                          (route) => false,
+                    );
+                  },
+                  child: Icon(
+                    Icons.logout_outlined,
+                    size: 18,
+                    color: Colors.grey.shade500,
                   ),
                 ),
               ],

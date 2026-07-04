@@ -111,7 +111,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   }
 
   Stream<QuerySnapshot> _getLeavesStream() {
-    var query = FirebaseFirestore.instance.collection('leaves').orderBy('createdAt', descending: true);
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection('leaves');
     if (_selectedFilter != 'all') query = query.where('status', isEqualTo: _selectedFilter);
     return query.snapshots();
   }

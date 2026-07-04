@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import '../utils/firebase_exception_handler.dart';
+import 'admin/admin_dashboard.dart';
+import 'employee/employee_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,7 +24,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final userCred = await _authService.signInWithGoogle();
       if (userCred != null && mounted) {
         final userId = userCred.user!.uid;
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+        final usersRef = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
+        var userDoc = await usersRef.get();
 
         if (!userDoc.exists) {
           // New user - create in Firestore as employee with all expected fields
@@ -37,10 +42,33 @@ class _LoginScreenState extends State<LoginScreen> {
             'allowances': 0,
             'createdAt': DateTime.now().toIso8601String(),
           });
+          // Read again to get latest data
+          userDoc = await usersRef.get();
         }
+
         // AuthWrapper will auto-redirect based on auth state change
+        final data = userDoc.data()!;
+        final role = data['role'] ?? 'employee';
+
+        if (!mounted) return;
+
+        if (role == 'admin') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AdminDashboard(),
+            ),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const EmployeeDashboard(),
+            ),
+          );
+        }
       }
-    } catch (e) {
+    }catch (e) {
       if (mounted) {
         scaffoldMessenger.showSnackBar(
           SnackBar(content: Text('Google Login Failed: ${getFirebaseErrorMessage(e)}')),

@@ -113,9 +113,20 @@ class AdminSidebar extends StatelessWidget {
                 InkWell(
                   onTap: () async {
                     await AuthService().signOut();
-                    // AuthWrapper auto-redirects to login when auth state changes
+
+                    if (!context.mounted) return;
+
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/login',
+                          (route) => false,
+                    );
                   },
-                  child: Icon(Icons.logout_outlined, size: 18, color: Colors.grey.shade500),
+                  child: Icon(
+                    Icons.logout_outlined,
+                    size: 18,
+                    color: Colors.grey.shade500,
+                  ),
                 ),
               ],
             ),

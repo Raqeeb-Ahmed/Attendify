@@ -269,6 +269,8 @@ Future<bool> _checkWifiAndAutoCheckIn(
     final wifiName = await networkInfo.getWifiName();
     final bssid = await networkInfo.getWifiBSSID();
 
+    print("SSID = $wifiName");
+    print("BSSID = $bssid");
     debugPrint('[WorkManager] WiFi check: $wifiName (BSSID: $bssid)');
 
     if (wifiName == null) {

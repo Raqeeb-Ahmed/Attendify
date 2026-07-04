@@ -429,6 +429,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             .orderBy('createdAt', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
+
+
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -485,162 +487,16 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   ),
                 ],
               ),
-              child: Column(
-                children: [
-                  // Table Header
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                      border: Border(
-                        bottom: BorderSide(color: Colors.grey.shade200),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          flex: 2,
-                          child: Text(
-                            'CATEGORY',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF64748B),
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                        const Expanded(
-                          flex: 3,
-                          child: Text(
-                            'DESCRIPTION',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF64748B),
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                        const Expanded(
-                          flex: 2,
-                          child: Text(
-                            'AMOUNT',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF64748B),
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                        const Expanded(
-                          flex: 2,
-                          child: Text(
-                            'STATUS',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF64748B),
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            'DATE',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade600,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Table Rows
-                  ...claims.map((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(color: Colors.grey.shade100),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.receipt_rounded,
-                                  size: 18,
-                                  color: Colors.grey.shade400,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    data['category'] ?? '',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF1E293B),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              data['description'] ?? '',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              'PKR ${NumberFormat('#,##0').format(data['amount'] ?? 0)}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1E293B),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: _buildStatusBadge(data['status'] ?? 'pending'),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              data['date'] != null
-                                  ? DateFormat('MMM dd, yyyy').format(DateTime.parse(data['date']))
-                                  : 'N/A',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    ...claims.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return _buildExpenseCard(data);
+                    }),
+                  ],
+                ),
               ),
             ),
           );
@@ -649,48 +505,272 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
+
+
+
+  Widget _buildExpenseCard(Map<String, dynamic> data) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          /// Top
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              Container(
+                height: 42,
+                width: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xffEEF2FF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.receipt_long_rounded,
+                  color: Color(0xff6366F1),
+                  size: 22,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    Text(
+                      "Category",
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    const SizedBox(height: 3),
+                    Text(
+                      data['category'] ?? "-",
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      "Description",
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    const SizedBox(height: 3),
+
+                    Text(
+                      data['description'] ?? "-",
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.grey.shade600,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+
+                  Text(
+                    "Amount",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+
+                  const SizedBox(height: 3),
+
+                  Text(
+                    "PKR ${NumberFormat('#,##0').format(data['amount'] ?? 0)}",
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          Divider(color: Colors.grey.shade200),
+
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  Text(
+                    "Status",
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  _buildStatusBadge(data['status'] ?? "pending"),
+                ],
+              ),
+
+              const Spacer(),
+
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+
+                  Text(
+                    "Date",
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Row(
+                    children: [
+
+                      Icon(
+                        Icons.calendar_today_outlined,
+                        size: 14,
+                        color: Colors.grey.shade500,
+                      ),
+
+                      const SizedBox(width: 5),
+
+                      Text(
+                        data['date'] != null
+                            ? DateFormat('dd MMM yyyy')
+                            .format(DateTime.parse(data['date']))
+                            : "-",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+
   Widget _buildStatusBadge(String status) {
-    Color bgColor;
-    Color textColor;
-    IconData icon;
+    late Color bgColor;
+    late Color borderColor;
+    late Color textColor;
+    late IconData icon;
 
     switch (status.toLowerCase()) {
       case 'approved':
-        bgColor = const Color(0xFFDCFCE7);
-        textColor = const Color(0xFF16A34A);
-        icon = Icons.check_circle;
+        bgColor = const Color(0xffECFDF3);
+        borderColor = const Color(0xffABEFC6);
+        textColor = const Color(0xff067647);
+        icon = Icons.check_circle_rounded;
         break;
+
       case 'rejected':
-        bgColor = const Color(0xFFFEE2E2);
-        textColor = const Color(0xFFDC2626);
-        icon = Icons.cancel;
+        bgColor = const Color(0xffFEF3F2);
+        borderColor = const Color(0xffFECDCA);
+        textColor = const Color(0xffB42318);
+        icon = Icons.cancel_rounded;
         break;
+
       default:
-        bgColor = const Color(0xFFFEF3C7);
-        textColor = const Color(0xFFCA8A04);
-        icon = Icons.access_time;
+        bgColor = const Color(0xffFFFAEB);
+        borderColor = const Color(0xffFEDF89);
+        textColor = const Color(0xffB54708);
+        icon = Icons.schedule_rounded;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: textColor),
-          const SizedBox(width: 4),
-          Text(
-            status.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(
+          minWidth: 95,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 7,
+        ),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
               color: textColor,
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                status[0].toUpperCase() + status.substring(1),
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

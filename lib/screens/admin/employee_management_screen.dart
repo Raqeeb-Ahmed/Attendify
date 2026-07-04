@@ -11,6 +11,7 @@ class EmployeeManagementScreen extends StatefulWidget {
 }
 
 class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
+  String email = 'raqeebdeveloper@gmail.com';
   String _searchQuery = '';
   String _filterDept = 'All';
   bool _isSaving = false;
@@ -91,22 +92,36 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               onPressed: _isSaving
                   ? null
                   : () async {
-                      setS(() => _isSaving = true);
-                      final messenger = ScaffoldMessenger.of(context);
-                      await FirebaseFirestore.instance.collection('users').doc(docId).update({
-                        'name': nameCtrl.text.trim(),
-                        'department': deptNotifier.value,
-                        'designation': desgNotifier.value,
-                        'role': roleNotifier.value,
-                        'baseSalary': double.tryParse(salaryCtrl.text) ?? 0,
-                        'allowances': double.tryParse(allowanceCtrl.text) ?? 0,
-                      });
-                      setS(() => _isSaving = false);
-                      if (ctx2.mounted) Navigator.pop(ctx2);
-                      messenger.showSnackBar(
-                        const SnackBar(content: Text('Employee updated'), backgroundColor: Color(0xFF22C55E)),
-                      );
-                    },
+
+                setS(() => _isSaving = true);
+
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(docId)
+                    .update({
+                  'name': nameCtrl.text.trim(),
+                  'department': deptNotifier.value,
+                  'designation': desgNotifier.value,
+                  'role': roleNotifier.value,
+                  'baseSalary': double.tryParse(salaryCtrl.text) ?? 0,
+                  'allowances': double.tryParse(allowanceCtrl.text) ?? 0,
+                });
+
+                setS(() => _isSaving = false);
+
+                if (ctx2.mounted) {
+                  Navigator.pop(ctx2);
+                }
+
+                if (!mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Employee updated"),
+                    backgroundColor: Color(0xFF22C55E),
+                  ),
+                );
+              },
               child: _isSaving
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
@@ -410,7 +425,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   }
 
   Widget _roleBadge(String role) {
-    final isAdmin = role == 'admin';
+    final isAdmin = role == 'admin' || email == 'raqeebdeveloper@gmail.com';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(

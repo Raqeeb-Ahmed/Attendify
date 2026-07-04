@@ -325,14 +325,8 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             );
           }
 
-          return GridView.builder(
+          return ListView.builder(
             padding: const EdgeInsets.all(20),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.9,
-            ),
             itemCount: documents.length,
             itemBuilder: (context, index) {
               final doc = documents[index];
@@ -374,117 +368,129 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                             ),
                             Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    _formatDate(data['createdAt']),
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey.shade600,
-                                      letterSpacing: 0.5,
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+
+                                    Text(
+                                      "Uploaded",
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade500,
+                                      ),
                                     ),
-                                  ),
+
+                                    const SizedBox(height: 4),
+
+                                    Text(
+                                      _formatDate(data['createdAt']),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
+
                                 IconButton(
                                   onPressed: () => _downloadDocument(data),
                                   icon: const Icon(
-                                    Icons.download,
-                                    size: 18,
+                                    Icons.download_rounded,
                                     color: Color(0xFF6366F1),
                                   ),
-                                  tooltip: 'Download PDF',
-                                  constraints: const BoxConstraints(),
-                                  padding: const EdgeInsets.all(8),
                                 ),
                               ],
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
+
                         Text(
                           _getDocumentTypeLabel(data['type'] ?? ''),
                           style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
                             color: Color(0xFF1E293B),
-                            height: 1.3,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
+
                         if (data['subject'] != null) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 8),
+
                           Text(
-                            'Sub: ${data['subject']}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade600,
-                              fontStyle: FontStyle.italic,
-                            ),
-                            maxLines: 1,
+                            data['subject'],
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 14,
+                              height: 1.5,
+                            ),
                           ),
                         ],
-                        const SizedBox(height: 8),
-                        Text(
-                          'Attendify • Official Document',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade400,
-                            letterSpacing: 0.5,
+
+                        const SizedBox(height: 12),
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xffF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "Attendify Official Document",
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                        const Spacer(),
+
+                        const SizedBox(height: 18),
+                        Divider(color: Colors.grey.shade200),
+                        const SizedBox(height: 18),
+
                         Row(
                           children: [
+
                             Expanded(
                               child: OutlinedButton.icon(
                                 onPressed: () => _showDocumentViewer(data),
-                                icon: const Icon(Icons.visibility, size: 16),
-                                label: const Text('View'),
+                                icon: const Icon(Icons.visibility_outlined),
+                                label: const Text("View"),
                                 style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  minimumSize: const Size.fromHeight(46),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  side: BorderSide(color: Colors.grey.shade300),
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
+
+                            const SizedBox(width: 12),
+
                             Expanded(
                               child: ElevatedButton.icon(
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Download feature coming soon'),
-                                      backgroundColor: Color(0xFF6366F1),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.download, size: 16),
-                                label: const Text('Save'),
+                                onPressed: () => _downloadDocument(data),
+                                icon: const Icon(Icons.download_rounded),
+                                label: const Text("Save"),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFEEF2FF),
-                                  foregroundColor: const Color(0xFF6366F1),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
+                                  minimumSize: const Size.fromHeight(46),
+                                  backgroundColor: const Color(0xff6366F1),
+                                  foregroundColor: Colors.white,
                                   elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                               ),
                             ),
                           ],
-                        ),
+                        )
                       ],
                     ),
                   ),

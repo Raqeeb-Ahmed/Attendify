@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/work_manager_service.dart';
 import '../../utils/app_config.dart';
 import 'package:intl/intl.dart';
 import '../../services/attendance_service.dart';
@@ -55,6 +56,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeBackgroundServices();
+    });
     WidgetsBinding.instance.addObserver(this);
     _officeLat = AppConfig.officeLat;
     _officeLng = AppConfig.officeLng;
@@ -63,6 +67,11 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     _startBackgroundTracking();
     _checkAndSyncOfflineLocations();
   }
+
+Future<void> _initializeBackgroundServices() async {
+  await WorkManagerService.initialize();
+  ForegroundTrackingService.initialize();
+}
 
   Future<void> _checkAndSyncOfflineLocations() async {
     if (user == null) return;

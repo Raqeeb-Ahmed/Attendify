@@ -58,7 +58,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
       final goalsSnapshot = await FirebaseFirestore.instance
           .collection('goals')
           .where('userId', isEqualTo: user!.uid)
-          .orderBy('createdAt', descending: true)
+          // .orderBy('createdAt', descending: true)
           .get();
       
       setState(() {

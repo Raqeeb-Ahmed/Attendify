@@ -55,11 +55,13 @@ class LocationPermissionService {
 
       // Step 2: If denied forever, must go to settings
       if (permission == LocationPermission.deniedForever) {
-        await _showSettingsDialog(
-          context,
-          title: 'Location Permission Required',
-          message: 'This app requires location permission to track your attendance. Please enable it in settings.',
-        );
+        if (context.mounted) {
+          await _showSettingsDialog(
+            context,
+            title: 'Location Permission Required',
+            message: 'This app requires location permission to track your attendance. Please enable it in settings.',
+          );
+        }
         return LocationPermissionStatus.deniedForever;
       }
 
@@ -76,6 +78,7 @@ class LocationPermissionService {
       // Step 4: Check if we have "Always" permission
       if (permission == LocationPermission.whileInUse && forceAlways) {
         // Need to upgrade to "Always" - show explanation dialog
+        if (!context.mounted) return LocationPermissionStatus.whileInUseOnly;
         final shouldGoToSettings = await _showPermissionUpgradeDialog(context);
         if (shouldGoToSettings) {
           await openLocationSettings();
@@ -90,6 +93,7 @@ class LocationPermissionService {
         final isPrecise = await _isPreciseLocationEnabled();
         if (!isPrecise) {
           // Show dialog to enable precise location
+          if (!context.mounted) return LocationPermissionStatus.alwaysApproximate;
           final shouldGoToSettings = await _showPreciseLocationDialog(context);
           if (shouldGoToSettings) {
             await openLocationSettings();
@@ -104,7 +108,9 @@ class LocationPermissionService {
       // Step 6: Check if location services are enabled
       final isServiceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!isServiceEnabled) {
-        await _showEnableLocationServiceDialog(context);
+        if (context.mounted) {
+          await _showEnableLocationServiceDialog(context);
+        }
         return LocationPermissionStatus.serviceDisabled;
       }
 
@@ -154,7 +160,13 @@ class LocationPermissionService {
           children: [
             Icon(Icons.location_on, color: Colors.orange),
             SizedBox(width: 8),
-            Text('Always Allow Location'),
+            Expanded(
+              child: Text(
+                'Always Allow Location',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: const Column(
@@ -206,7 +218,13 @@ class LocationPermissionService {
           children: [
             Icon(Icons.gps_fixed, color: Colors.red),
             SizedBox(width: 8),
-            Text('Precise Location Required'),
+            Expanded(
+              child: Text(
+                'Precise Location Required',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: const Column(
@@ -289,7 +307,13 @@ class LocationPermissionService {
           children: [
             Icon(Icons.location_off, color: Colors.red),
             SizedBox(width: 8),
-            Text('Location Services Disabled'),
+            Expanded(
+              child: Text(
+                'Location Services Disabled',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: const Text(

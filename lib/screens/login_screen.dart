@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import '../utils/firebase_exception_handler.dart';
+import '../services/push_notification_service.dart';
 import 'admin/admin_dashboard.dart';
 import 'employee/employee_dashboard.dart';
+import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,19 +24,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final userCred = await _authService.signInWithGoogle();
-      if (userCred != null && mounted) {
+      if (userCred != null) {
         final userId = userCred.user!.uid;
-        final usersRef = await FirebaseFirestore.instance
+        final usersRef = FirebaseFirestore.instance
             .collection('users')
             .doc(userId);
         var userDoc = await usersRef.get();
 
         if (!userDoc.exists) {
           // New user - create in Firestore as employee with all expected fields
-          await FirebaseFirestore.instance.collection('users').doc(userId).set({
-            'name': userCred.user!.displayName ?? 'Unknown',
+          final userName = userCred.user!.displayName ?? 'Unknown';
+          await usersRef.set({
+            'name': userName,
             'email': userCred.user!.email ?? '',
             'role': 'employee',
+            'approved': false,
             'department': '',
             'designation': '',
             'phone': '',
@@ -42,6 +46,32 @@ class _LoginScreenState extends State<LoginScreen> {
             'allowances': 0,
             'createdAt': DateTime.now().toIso8601String(),
           });
+
+          // Send push notification to all Admins
+          try {
+            final adminsQuery = await FirebaseFirestore.instance
+                .collection('users')
+                .where('role', isEqualTo: 'admin')
+                .get();
+
+            final List<String> adminTokens = [];
+            for (var doc in adminsQuery.docs) {
+              final data = doc.data();
+              final tokens = List<String>.from(data['fcmTokens'] ?? []);
+              adminTokens.addAll(tokens);
+            }
+
+            if (adminTokens.isNotEmpty) {
+              await PushNotificationService.instance.sendPushNotification(
+                recipientTokens: adminTokens,
+                title: 'New User Registration',
+                body: '$userName has registered and is pending approval.',
+              );
+            }
+          } catch (fcmErr) {
+            debugPrint('Error sending signup FCM push to admins: $fcmErr');
+          }
+
           // Read again to get latest data
           userDoc = await usersRef.get();
         }
@@ -49,29 +79,39 @@ class _LoginScreenState extends State<LoginScreen> {
         // AuthWrapper will auto-redirect based on auth state change
         final data = userDoc.data()!;
         final role = data['role'] ?? 'employee';
+        final approved = data['approved'] ?? true;
 
-        if (!mounted) return;
-
-        if (role == 'admin') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const AdminDashboard(),
-            ),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const EmployeeDashboard(),
-            ),
-          );
+        if (mounted) {
+          if (role == 'admin' || role == 'manager') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AdminDashboard(),
+              ),
+            );
+          } else {
+            if (approved) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const EmployeeDashboard()),
+              );
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PendingApprovalScreen(),
+                ),
+              );
+            }
+          }
         }
       }
-    }catch (e) {
+    } catch (e) {
       if (mounted) {
         scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('Google Login Failed: ${getFirebaseErrorMessage(e)}')),
+          SnackBar(
+            content: Text('Google Login Failed: ${getFirebaseErrorMessage(e)}'),
+          ),
         );
       }
     } finally {

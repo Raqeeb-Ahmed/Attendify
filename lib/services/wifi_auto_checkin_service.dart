@@ -31,6 +31,7 @@ class WiFiAutoCheckInService {
   bool _isMonitoring = false;
   bool _hasAutoCheckedIn = false;
   String? _lastKnownWifiName;
+  bool _isCheckingIn = false;
 
   /// Office WiFi identifiers - can be SSID name or BSSID (MAC address)
   /// Uses configured office WiFi names from AppConfig
@@ -38,12 +39,12 @@ class WiFiAutoCheckInService {
 
   /// Start monitoring WiFi connection for auto check-in
   void startMonitoring(
-      String uid,
-      String name,
-      String email, {
-        String? department,
-        List<String>? customWifiNames,
-      }) {
+    String uid,
+    String name,
+    String email, {
+    String? department,
+    List<String>? customWifiNames,
+  }) {
     if (_isMonitoring) return;
     _isMonitoring = true;
 
@@ -68,9 +69,18 @@ class WiFiAutoCheckInService {
     });
 
     // Check more frequently for faster detection (every 10 seconds)
-    _wifiCheckTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
-      await _checkWifiAndAutoCheckIn(wifiNames);
-    });
+    // _wifiCheckTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+    //   await _checkWifiAndAutoCheckIn(wifiNames);
+    // });
+
+    _wifiCheckTimer = Timer.periodic(
+      const Duration(seconds: 30),
+          (_) async {
+        if (!_isCheckingIn) {
+          await _checkWifiAndAutoCheckIn(wifiNames);
+        }
+      },
+    );
 
     // Immediate first check
     _checkWifiAndAutoCheckIn(wifiNames);
@@ -94,9 +104,9 @@ class WiFiAutoCheckInService {
 
   /// Handle connectivity change events
   Future<void> _onConnectivityChanged(
-      List<ConnectivityResult> results,
-      List<String> wifiNames,
-      ) async {
+    List<ConnectivityResult> results,
+    List<String> wifiNames,
+  ) async {
     // Check if connected to WiFi
     final isWifi = results.contains(ConnectivityResult.wifi);
 
@@ -112,7 +122,17 @@ class WiFiAutoCheckInService {
 
   /// Core WiFi check and auto check-in logic
   Future<void> _checkWifiAndAutoCheckIn(List<String> officeWifiNames) async {
-    if (_currentUid == null || _hasAutoCheckedIn) return;
+    if (_currentUid == null) return;
+
+    if (_hasAutoCheckedIn) {
+      debugPrint("[WiFiAutoCheckInService] Already auto checked in.");
+      return;
+    }
+
+    if (_isCheckingIn) {
+      debugPrint("[WiFiAutoCheckInService] Check-in already in progress...");
+      return;
+    }
 
     try {
       // Get current WiFi info
@@ -129,6 +149,7 @@ class WiFiAutoCheckInService {
         try {
           // Check location permission first
           final permission = await Geolocator.checkPermission();
+          debugPrint("Permission = $permission");
           if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) {
             debugPrint('[WiFiAutoCheckInService] Location permission denied. Cannot verify geofence proximity.');
             return;
@@ -144,6 +165,19 @@ class WiFiAutoCheckInService {
             position.latitude,
             position.longitude,
           );
+
+          debugPrint("============== GPS DEBUG ==============");
+          debugPrint("Office Lat : ${AppConfig.officeLat}");
+          debugPrint("Office Lng : ${AppConfig.officeLng}");
+
+          debugPrint("Current Lat : ${position.latitude}");
+          debugPrint("Current Lng : ${position.longitude}");
+
+          debugPrint("Accuracy : ${position.accuracy}");
+
+          debugPrint("Distance : ${distance.round()} meters");
+          debugPrint("=======================================");
+
 
           final isInsideRadius = distance <= 100;
 
@@ -186,6 +220,7 @@ class WiFiAutoCheckInService {
 
       // Match by SSID name
       if (cleanName != null && cleanName.contains(cleanOfficeName)) {
+        debugPrint("✅ Office WiFi Matched");
         debugPrint('[WiFiAutoCheckInService] Matched WiFi by SSID: $wifiName');
         return true;
       }
@@ -207,28 +242,81 @@ class WiFiAutoCheckInService {
   }
 
   /// Check if user already checked in today
+  // Future<bool> _hasAlreadyCheckedIn() async {
+  //   if (_currentUid == null) return false;
+  //
+  //   try {
+  //     final today = DateTime.now();
+  //     final dateStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+  //     final docId = '${_currentUid}_$dateStr';
+  //
+  //     final doc = await _db.collection('attendance').doc(docId).get();
+  //     return doc.exists && doc.data()?['checkInTime'] != null;
+  //   } catch (e) {
+  //     debugPrint('[WiFiAutoCheckInService] Error checking attendance: $e');
+  //     return false;
+  //   }
+  // }
+
+
   Future<bool> _hasAlreadyCheckedIn() async {
-    if (_currentUid == null) return false;
+
+    if (_hasAutoCheckedIn) {
+      return true;
+    }
+
+    if (_currentUid == null) {
+      return false;
+    }
 
     try {
+
       final today = DateTime.now();
-      final dateStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      final dateStr =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
       final docId = '${_currentUid}_$dateStr';
 
-      final doc = await _db.collection('attendance').doc(docId).get();
-      return doc.exists && doc.data()?['checkInTime'] != null;
+      final doc =
+      await _db.collection('attendance').doc(docId).get();
+
+      if (doc.exists && doc.data()?['checkInTime'] != null) {
+
+        _hasAutoCheckedIn = true;
+
+        return true;
+      }
+
+      return false;
+
     } catch (e) {
-      debugPrint('[WiFiAutoCheckInService] Error checking attendance: $e');
+
+      debugPrint(e.toString());
+
       return false;
     }
   }
-
   /// Perform auto check-in via WiFi detection
+  //
+
+
   Future<void> _performAutoCheckIn(String? wifiName, String? bssid) async {
-    if (_currentUid == null || _hasAutoCheckedIn) return;
+    if (_currentUid == null) return;
+
+    if (_isCheckingIn) {
+      debugPrint("[WiFiAutoCheckInService] Another check-in request is already running.");
+      return;
+    }
+
+    _isCheckingIn = true;
 
     try {
-      debugPrint('[WiFiAutoCheckInService] 🎯 Auto check-in triggered via WiFi: $wifiName');
+      debugPrint("==================================");
+      debugPrint("AUTO CHECK-IN STARTED");
+      debugPrint("User : $_currentUid");
+      debugPrint("Time : ${DateTime.now()}");
+      debugPrint("==================================");
 
       final result = await _attendanceService.checkIn(
         _currentUid!,
@@ -240,9 +328,11 @@ class WiFiAutoCheckInService {
       if (result != null) {
         _hasAutoCheckedIn = true;
 
-        // Record that this was a WiFi-based auto check-in
         final today = DateTime.now();
-        final dateStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+        final dateStr =
+            '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
         final docId = '${_currentUid}_$dateStr';
 
         await _db.collection('attendance').doc(docId).update({
@@ -252,17 +342,24 @@ class WiFiAutoCheckInService {
           'checkInMethod': 'wifi',
         });
 
-        debugPrint('[WiFiAutoCheckInService] ✅ WiFi auto check-in successful!');
+        debugPrint("✅ AUTO CHECK-IN SUCCESS");
 
-        // Start background tracking + auto-checkout timer
-        _attendanceService.startHeartbeat(_currentUid!);
-        _attendanceService.startLocationTracking(_currentUid!);
+        // _attendanceService.startHeartbeat(_currentUid!);
+        // _attendanceService.startLocationTracking(_currentUid!);
         _attendanceService.startAutoCheckoutTimer(_currentUid!);
+      } else {
+        debugPrint("⚠ AttendanceService returned NULL");
       }
-    } catch (e) {
-      debugPrint('[WiFiAutoCheckInService] ❌ WiFi auto check-in failed: $e');
+    } catch (e, stack) {
+      debugPrint("========== AUTO CHECK IN ERROR ==========");
+      debugPrint(e.toString());
+      debugPrint(stack.toString());
+      debugPrint("========================================");
+    } finally {
+      _isCheckingIn = false;
     }
   }
+
 
   /// Reset auto check-in status (for new day or testing)
   void resetAutoCheckIn() {

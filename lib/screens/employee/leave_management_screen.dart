@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../../services/push_notification_service.dart';
 
 class LeaveManagementScreen extends StatefulWidget {
   const LeaveManagementScreen({super.key});
@@ -47,7 +48,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   Future<void> _fetchLeaves() async {
     if (user == null) return;
     
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('leaves')
@@ -55,12 +56,14 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
           .orderBy('createdAt', descending: true)
           .get();
       
-      setState(() {
-        _leaves = snapshot.docs.map((doc) => {
-          'id': doc.id,
-          ...doc.data(),
-        }).toList();
-      });
+      if (mounted) {
+        setState(() {
+          _leaves = snapshot.docs.map((doc) => {
+            'id': doc.id,
+            ...doc.data(),
+          }).toList();
+        });
+      }
     } catch (e) {
       debugPrint('Error fetching leaves: $e');
       if (mounted) {
@@ -69,7 +72,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -91,12 +94,15 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final days = _endDate!.difference(_startDate!).inDays + 1;
-    final leaveTypeLabel = _leaveTypes.firstWhere(
-      (t) => t['id'] == _selectedLeaveType,
-      orElse: () => {'label': _selectedLeaveType},
-    )['label'] as String;
+    String leaveTypeLabel = _selectedLeaveType;
+    for (final type in _leaveTypes) {
+      if (type['id'] == _selectedLeaveType) {
+        leaveTypeLabel = type['label'] as String;
+        break;
+      }
+    }
 
-    setState(() => _isApplying = true);
+    if (mounted) setState(() => _isApplying = true);
     try {
       await FirebaseFirestore.instance.collection('leaves').add({
         'userId': user!.uid,
@@ -113,6 +119,32 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         'createdAt': DateTime.now().toIso8601String(),
       });
 
+      // Send push notification to all Admins
+      try {
+        final adminsQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .where('role', isEqualTo: 'admin')
+            .get();
+
+        final List<String> adminTokens = [];
+        for (var doc in adminsQuery.docs) {
+          final data = doc.data();
+          final tokens = List<String>.from(data['fcmTokens'] ?? []);
+          adminTokens.addAll(tokens);
+        }
+
+        if (adminTokens.isNotEmpty) {
+          final employeeName = user!.displayName ?? 'Unknown';
+          await PushNotificationService.instance.sendPushNotification(
+            recipientTokens: adminTokens,
+            title: 'New Leave Request',
+            body: '$employeeName has requested $leaveTypeLabel leave for $days day(s).',
+          );
+        }
+      } catch (fcmErr) {
+        debugPrint('Error sending FCM push to admins: $fcmErr');
+      }
+
       navigator.pop();
       scaffoldMessenger.showSnackBar(
         const SnackBar(
@@ -127,9 +159,11 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       }
     } catch (e) {
       debugPrint('Error applying leave: $e');
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isApplying = false);
     }
@@ -736,7 +770,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                       crossAxisCount: isMobile ? 2 : 4,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
-                      childAspectRatio: isMobile ? 1.35 : 1.6,
+                      childAspectRatio: isMobile
+                          ? (MediaQuery.of(context).size.width < 360 ? 1.15 : 1.35)
+                          : 1.6,
                     ),
                     itemCount: _leaveTypes.length,
                     itemBuilder: (context, index) {
@@ -747,7 +783,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                       final bgColor = _getLeaveBgColor(id);
 
                       return Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -762,12 +798,13 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.all(8),
+                                  padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
                                     color: bgColor,
                                     shape: BoxShape.circle,
@@ -775,19 +812,19 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                   child: Icon(
                                     icon,
                                     color: color,
-                                    size: 20,
+                                    size: 18,
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Text(
                                     'Available',
                                     style: TextStyle(
-                                      fontSize: 9,
+                                      fontSize: 8,
                                       fontWeight: FontWeight.w600,
                                       color: Color(0xFF64748B),
                                     ),
@@ -795,38 +832,52 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                 ),
                               ],
                             ),
-                            const Spacer(),
-                            Text(
-                              type['label'].toString().toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF94A3B8),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
                             const SizedBox(height: 4),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(
-                                  '${type['balance']}',
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1E293B),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      type['label'].toString().toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF94A3B8),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 4),
-                                const Text(
-                                  'days',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF94A3B8),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    textBaseline: TextBaseline.alphabetic,
+                                    children: [
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          '${type['balance']}',
+                                          style: const TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1E293B),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      const Text(
+                                        'days',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -999,6 +1050,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1E293B),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 if (leave['reason'] != null && leave['reason'].toString().trim().isNotEmpty) ...[
@@ -1017,12 +1070,16 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                   children: [
                     const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF94A3B8)),
                     const SizedBox(width: 6),
-                    Text(
-                      '${leave['startDate']} to ${leave['endDate']}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF64748B),
-                        fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Text(
+                        '${leave['startDate']} to ${leave['endDate']}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

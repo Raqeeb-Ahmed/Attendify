@@ -6,8 +6,16 @@ import 'admin_dashboard.dart';
 class EmployeeListPanel extends StatefulWidget {
   final List<EmployeeMapData> employees;
   final String selectedDate;
+  final String activeFilter;
+  final ValueChanged<String> onFilterChanged;
 
-  const EmployeeListPanel({super.key, required this.employees, required this.selectedDate});
+  const EmployeeListPanel({
+    super.key,
+    required this.employees,
+    required this.selectedDate,
+    required this.activeFilter,
+    required this.onFilterChanged,
+  });
 
   @override
   State<EmployeeListPanel> createState() => _EmployeeListPanelState();
@@ -15,7 +23,6 @@ class EmployeeListPanel extends StatefulWidget {
 
 class _EmployeeListPanelState extends State<EmployeeListPanel> {
   String _searchQuery = '';
-  String _activeFilter = 'All';
   String? _expandedUserId;
 
   final List<String> _filters = [
@@ -27,21 +34,27 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
       final matchesSearch = emp.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           emp.email.toLowerCase().contains(_searchQuery.toLowerCase());
       if (!matchesSearch) return false;
-      switch (_activeFilter) {
-        case 'Present':
+      final normalizedFilter = widget.activeFilter.toUpperCase();
+      switch (normalizedFilter) {
+        case 'PRESENT':
           return emp.status == EmployeeStatus.present;
-        case 'Late':
+        case 'LATE':
           return emp.status == EmployeeStatus.late_;
-        case 'Outside':
+        case 'OUTSIDE':
+        case 'OUT_OF_SYSTEM':
           return emp.status == EmployeeStatus.outside;
-        case 'Pending':
+        case 'PENDING':
           return emp.status == EmployeeStatus.pending;
-        case 'Online':
-          return emp.isOnline;
-        case 'Offline':
-          return !emp.isOnline;
-        case 'Out of System':
-          return emp.isOnline && emp.status == EmployeeStatus.outside;
+        case 'ONLINE':
+          return emp.isOnline &&
+              (emp.status == EmployeeStatus.present ||
+                  emp.status == EmployeeStatus.late_);
+        case 'OFFLINE':
+          return !emp.isOnline ||
+              (emp.status != EmployeeStatus.present &&
+                  emp.status != EmployeeStatus.late_);
+        case 'IN_OFFICE':
+          return emp.status == EmployeeStatus.present || (emp.status == EmployeeStatus.late_ && emp.distance != null && emp.distance! <= 100);
         default:
           return true;
       }
@@ -199,9 +212,17 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
   }
 
   Widget _buildFilterChip(String label) {
-    final isActive = _activeFilter == label;
+    String key = 'ALL';
+    if (label == 'Present') key = 'PRESENT';
+    else if (label == 'Late') key = 'LATE';
+    else if (label == 'Outside' || label == 'Out of System') key = 'OUT_OF_SYSTEM';
+    else if (label == 'Pending') key = 'PENDING';
+    else if (label == 'Online') key = 'ONLINE';
+    else if (label == 'Offline') key = 'OFFLINE';
+
+    final isActive = widget.activeFilter.toUpperCase() == key;
     return GestureDetector(
-      onTap: () => setState(() => _activeFilter = label),
+      onTap: () => widget.onFilterChanged(key),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(

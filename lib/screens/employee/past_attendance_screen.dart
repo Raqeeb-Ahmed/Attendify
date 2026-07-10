@@ -12,14 +12,13 @@ class PastAttendanceScreen extends StatefulWidget {
 
 class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
   final user = FirebaseAuth.instance.currentUser;
-  
+
   DateTime _currentMonth = DateTime.now();
   DateTime _selectedDay = DateTime.now();
-  
-  List<Map<String, dynamic>> _attendanceRecords = [];
-  
-  bool _isLoading = true;
 
+  List<Map<String, dynamic>> _attendanceRecords = [];
+
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -29,24 +28,29 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
 
   Future<void> _fetchMonthData() async {
     if (user == null) return;
-    
+
     setState(() => _isLoading = true);
     try {
       final startDate = DateTime(_currentMonth.year, _currentMonth.month, 1);
       final endDate = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
-      
+
       final snapshot = await FirebaseFirestore.instance
           .collection('attendance')
           .where('userId', isEqualTo: user!.uid)
-          .where('date', isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd').format(startDate))
-          .where('date', isLessThanOrEqualTo: DateFormat('yyyy-MM-dd').format(endDate))
+          .where(
+            'date',
+            isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd').format(startDate),
+          )
+          .where(
+            'date',
+            isLessThanOrEqualTo: DateFormat('yyyy-MM-dd').format(endDate),
+          )
           .get();
-      
+
       setState(() {
-        _attendanceRecords = snapshot.docs.map((doc) => {
-          'id': doc.id,
-          ...doc.data(),
-        }).toList();
+        _attendanceRecords = snapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data()})
+            .toList();
       });
     } catch (e) {
       debugPrint('Error fetching attendance: $e');
@@ -55,19 +59,22 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
     }
   }
 
-
   List<DateTime> _getDaysInMonth() {
     final firstDay = DateTime(_currentMonth.year, _currentMonth.month, 1);
     final lastDay = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
-    
+
     // Start from the first day of the week containing the first day of month
     final startDate = firstDay.subtract(Duration(days: firstDay.weekday % 7));
-    
+
     // End at the last day of the week containing the last day of month
     final endDate = lastDay.add(Duration(days: 6 - lastDay.weekday % 7));
-    
+
     final days = <DateTime>[];
-    for (var date = startDate; date.isBefore(endDate) || date.isAtSameMomentAs(endDate); date = date.add(const Duration(days: 1))) {
+    for (
+      var date = startDate;
+      date.isBefore(endDate) || date.isAtSameMomentAs(endDate);
+      date = date.add(const Duration(days: 1))
+    ) {
       days.add(date);
     }
     return days;
@@ -81,9 +88,15 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
     );
   }
 
-  int get _totalPresent => _attendanceRecords.where((r) => r['status'] == 'PRESENT' || r['status'] == 'present').length;
-  int get _totalLate => _attendanceRecords.where((r) => r['status'] == 'LATE' || r['status'] == 'late').length;
-  int get _totalOutside => _attendanceRecords.where((r) => r['status'] == 'OUTSIDE' || r['status'] == 'outside').length;
+  int get _totalPresent => _attendanceRecords
+      .where((r) => r['status'] == 'PRESENT' || r['status'] == 'present')
+      .length;
+  int get _totalLate => _attendanceRecords
+      .where((r) => r['status'] == 'LATE' || r['status'] == 'late')
+      .length;
+  int get _totalOutside => _attendanceRecords
+      .where((r) => r['status'] == 'OUTSIDE' || r['status'] == 'outside')
+      .length;
   int get _totalRecords => _attendanceRecords.length;
 
   @override
@@ -100,7 +113,7 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
-          tooltip: 'Menu',
+          // tooltip: 'Menu',
         ),
         title: const Text(
           'Past Attendance',
@@ -112,15 +125,20 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6366F1)),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Month Selector
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const Text(
                         'View your attendance history',
@@ -136,21 +154,25 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: const Icon(Icons.chevron_left, size: 20),
                               onPressed: () {
                                 setState(() {
-                                  _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1);
+                                  _currentMonth = DateTime(
+                                    _currentMonth.year,
+                                    _currentMonth.month - 1,
+                                  );
                                 });
                                 _fetchMonthData();
                               },
                             ),
                             Text(
-                              DateFormat('MMMM yyyy').format(_currentMonth),
+                              DateFormat('MMM yyyy').format(_currentMonth),
                               style: const TextStyle(
                                 fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.bold,
                                 color: Color(0xFF1E293B),
                               ),
                             ),
@@ -158,7 +180,10 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                               icon: const Icon(Icons.chevron_right, size: 20),
                               onPressed: () {
                                 setState(() {
-                                  _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
+                                  _currentMonth = DateTime(
+                                    _currentMonth.year,
+                                    _currentMonth.month + 1,
+                                  );
                                 });
                                 _fetchMonthData();
                               },
@@ -174,15 +199,41 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 4,
+                    crossAxisCount: MediaQuery.of(context).size.width < 450
+                        ? 2
+                        : 4,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: 1.2,
+                    childAspectRatio: MediaQuery.of(context).size.width < 450
+                        ? 2.0
+                        : 1.2,
                     children: [
-                      _buildSummaryCard('Present', _totalPresent.toString(), Icons.check_circle, const Color(0xFF22C55E)),
-                      _buildSummaryCard('Late', _totalLate.toString(), Icons.warning_amber, const Color(0xFFF59E0B)),
-                      _buildSummaryCard('Outside', _totalOutside.toString(), Icons.cancel, const Color(0xFFF97316)),
-                      _buildSummaryCard('Rate', _totalRecords > 0 ? '${(((_totalPresent + _totalLate) / _totalRecords) * 100).round()}%' : '0%', Icons.trending_up, const Color(0xFF6366F1)),
+                      _buildSummaryCard(
+                        'Present',
+                        _totalPresent.toString(),
+                        Icons.check_circle,
+                        const Color(0xFF22C55E),
+                      ),
+                      _buildSummaryCard(
+                        'Late',
+                        _totalLate.toString(),
+                        Icons.warning_amber,
+                        const Color(0xFFF59E0B),
+                      ),
+                      _buildSummaryCard(
+                        'Outside',
+                        _totalOutside.toString(),
+                        Icons.cancel,
+                        const Color(0xFFF97316),
+                      ),
+                      _buildSummaryCard(
+                        'Rate',
+                        _totalRecords > 0
+                            ? '${(((_totalPresent + _totalLate) / _totalRecords) * 100).round()}%'
+                            : '0%',
+                        Icons.trending_up,
+                        const Color(0xFF6366F1),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -213,7 +264,11 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                   color: const Color(0xFFEEF2FF),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(Icons.calendar_today, color: Color(0xFF6366F1), size: 18),
+                                child: const Icon(
+                                  Icons.calendar_today,
+                                  color: Color(0xFF6366F1),
+                                  size: 18,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               const Text(
@@ -234,20 +289,22 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                             children: [
                               // Day headers
                               Row(
-                                children: ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day) {
-                                  return Expanded(
-                                    child: Center(
-                                      child: Text(
-                                        day,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF94A3B8),
+                                children: ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+                                    .map((day) {
+                                      return Expanded(
+                                        child: Center(
+                                          child: Text(
+                                            day,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF94A3B8),
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
+                                      );
+                                    })
+                                    .toList(),
                               ),
                               const SizedBox(height: 12),
                               // Calendar grid
@@ -260,14 +317,28 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                           padding: const EdgeInsets.all(16),
                           decoration: const BoxDecoration(
                             color: Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+                            borderRadius: BorderRadius.vertical(
+                              bottom: Radius.circular(16),
+                            ),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _buildLegendItem('P', 'Present', const Color(0xFF22C55E)),
-                              _buildLegendItem('L', 'Late', const Color(0xFFF59E0B)),
-                              _buildLegendItem('O', 'Outside', const Color(0xFFF97316)),
+                              _buildLegendItem(
+                                'P',
+                                'Present',
+                                const Color(0xFF22C55E),
+                              ),
+                              _buildLegendItem(
+                                'L',
+                                'Late',
+                                const Color(0xFFF59E0B),
+                              ),
+                              _buildLegendItem(
+                                'O',
+                                'Outside',
+                                const Color(0xFFF97316),
+                              ),
                             ],
                           ),
                         ),
@@ -302,12 +373,18 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                   color: const Color(0xFFEEF2FF),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(Icons.access_time, color: Color(0xFF6366F1), size: 18),
+                                child: const Icon(
+                                  Icons.access_time,
+                                  color: Color(0xFF6366F1),
+                                  size: 18,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  DateFormat('EEEE, MMMM d, yyyy').format(_selectedDay),
+                                  DateFormat(
+                                    'EEEE, MMMM d, yyyy',
+                                  ).format(_selectedDay),
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
@@ -316,7 +393,9 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                 ),
                               ),
                               if (hasRecord)
-                                _buildStatusBadge(selectedRecord['status'] ?? ''),
+                                _buildStatusBadge(
+                                  selectedRecord['status'] ?? '',
+                                ),
                             ],
                           ),
                         ),
@@ -331,8 +410,14 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                         Expanded(
                                           child: _buildDetailCard(
                                             'Check-in',
-                                            selectedRecord['checkInTime'] != null
-                                                ? DateFormat('hh:mm a').format(DateTime.parse(selectedRecord['checkInTime'] as String).toLocal())
+                                            selectedRecord['checkInTime'] !=
+                                                    null
+                                                ? DateFormat('hh:mm a').format(
+                                                    DateTime.parse(
+                                                      selectedRecord['checkInTime']
+                                                          as String,
+                                                    ).toLocal(),
+                                                  )
                                                 : '--:--',
                                             Icons.login,
                                             const Color(0xFF6366F1),
@@ -342,9 +427,18 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                         Expanded(
                                           child: _buildDetailCard(
                                             'Check-out',
-                                            selectedRecord['checkOutTime'] != null
-                                                ? DateFormat('hh:mm a').format(DateTime.parse(selectedRecord['checkOutTime'] as String).toLocal())
-                                                : selectedRecord['sessionStatus'] == 'active' ? 'Active' : 'Auto 6 PM',
+                                            selectedRecord['checkOutTime'] !=
+                                                    null
+                                                ? DateFormat('hh:mm a').format(
+                                                    DateTime.parse(
+                                                      selectedRecord['checkOutTime']
+                                                          as String,
+                                                    ).toLocal(),
+                                                  )
+                                                : selectedRecord['sessionStatus'] ==
+                                                      'active'
+                                                ? 'Active'
+                                                : 'Auto 6 PM',
                                             Icons.logout_rounded,
                                             const Color(0xFF64748B),
                                           ),
@@ -360,11 +454,18 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                     padding: const EdgeInsets.all(40),
                                     child: Column(
                                       children: [
-                                        Icon(Icons.event_busy, size: 48, color: Colors.grey.shade300),
+                                        Icon(
+                                          Icons.event_busy,
+                                          size: 48,
+                                          color: Colors.grey.shade300,
+                                        ),
                                         const SizedBox(height: 12),
                                         Text(
                                           'No attendance record for this date',
-                                          style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                                          style: TextStyle(
+                                            color: Colors.grey.shade400,
+                                            fontSize: 14,
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -380,7 +481,12 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
     );
   }
 
-  Widget _buildSummaryCard(String label, String value, IconData icon, Color color) {
+  Widget _buildSummaryCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
@@ -404,10 +510,7 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
           ),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 9,
-              color: Color(0xFF94A3B8),
-            ),
+            style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8)),
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -420,10 +523,11 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 7,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
+        childAspectRatio: MediaQuery.of(context).size.width < 400 ? 0.75 : 1.0,
       ),
       itemCount: days.length,
       itemBuilder: (context, index) {
@@ -431,8 +535,12 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         final record = _getRecordForDay(day);
         final hasRecord = record != null && record.isNotEmpty;
         final isCurrentMonth = day.month == _currentMonth.month;
-        final isSelected = DateFormat('yyyy-MM-dd').format(day) == DateFormat('yyyy-MM-dd').format(_selectedDay);
-        final isToday = DateFormat('yyyy-MM-dd').format(day) == DateFormat('yyyy-MM-dd').format(DateTime.now());
+        final isSelected =
+            DateFormat('yyyy-MM-dd').format(day) ==
+            DateFormat('yyyy-MM-dd').format(_selectedDay);
+        final isToday =
+            DateFormat('yyyy-MM-dd').format(day) ==
+            DateFormat('yyyy-MM-dd').format(DateTime.now());
         final isFuture = day.isAfter(DateTime.now());
 
         Color? bgColor;
@@ -457,19 +565,23 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         }
 
         return InkWell(
-          onTap: isFuture ? null : () {
-            setState(() => _selectedDay = day);
-          },
+          onTap: isFuture
+              ? null
+              : () {
+                  setState(() => _selectedDay = day);
+                },
           child: Container(
             decoration: BoxDecoration(
-              color: bgColor ?? (isCurrentMonth ? Colors.white : const Color(0xFFF8FAFC)),
+              color:
+                  bgColor ??
+                  (isCurrentMonth ? Colors.white : const Color(0xFFF8FAFC)),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isSelected
                     ? const Color(0xFF6366F1)
                     : isToday
-                        ? const Color(0xFF6366F1).withValues(alpha: 0.5)
-                        : borderColor ?? const Color(0xFFE2E8F0),
+                    ? const Color(0xFF6366F1).withValues(alpha: 0.5)
+                    : borderColor ?? const Color(0xFFE2E8F0),
                 width: isSelected ? 2 : 1,
               ),
             ),
@@ -481,7 +593,9 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: isCurrentMonth ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                    color: isCurrentMonth
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFF94A3B8),
                   ),
                 ),
                 if (statusLabel != null)
@@ -493,8 +607,8 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                       color: statusLabel == 'P'
                           ? const Color(0xFF22C55E)
                           : statusLabel == 'L'
-                              ? const Color(0xFFF59E0B)
-                              : const Color(0xFFF97316),
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFFF97316),
                     ),
                   ),
               ],
@@ -531,10 +645,7 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         const SizedBox(width: 6),
         Text(
           text,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF64748B),
-          ),
+          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
         ),
       ],
     );
@@ -618,17 +729,48 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         children: [
           Row(
             children: [
-              const Text('TIME ALLOCATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8), letterSpacing: 1)),
+              const Text(
+                'TIME ALLOCATION',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF94A3B8),
+                  letterSpacing: 1,
+                ),
+              ),
               const Spacer(),
-              Text('Total: ${totalHours.toStringAsFixed(1)}h', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF6366F1))),
+              Text(
+                'Total: ${totalHours.toStringAsFixed(1)}h',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF6366F1),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
-          _timeAllocationRow('Inside Office', _fmtMins(insideTime), const Color(0xFF22C55E)),
-          _timeAllocationRow('Outside Office', _fmtMins(outsideTime), const Color(0xFFF97316)),
-          _timeAllocationRow('Offline / Idle', _fmtMins(offlineTime), const Color(0xFF94A3B8)),
+          _timeAllocationRow(
+            'Inside Office',
+            _fmtMins(insideTime),
+            const Color(0xFF22C55E),
+          ),
+          _timeAllocationRow(
+            'Outside Office',
+            _fmtMins(outsideTime),
+            const Color(0xFFF97316),
+          ),
+          _timeAllocationRow(
+            'Offline / Idle',
+            _fmtMins(offlineTime),
+            const Color(0xFF94A3B8),
+          ),
           if ((extraHours is num) && extraHours > 0)
-            _timeAllocationRow('Overtime', _fmtMins(extraHours), const Color(0xFF8B5CF6)),
+            _timeAllocationRow(
+              'Overtime',
+              _fmtMins(extraHours),
+              const Color(0xFF8B5CF6),
+            ),
         ],
       ),
     );
@@ -639,16 +781,44 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
-          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF475569), fontWeight: FontWeight.w500))),
-          Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF475569),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildDetailCard(String label, String value, IconData icon, Color color) {
+  Widget _buildDetailCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -686,5 +856,4 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
       ),
     );
   }
-
 }

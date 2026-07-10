@@ -31,105 +31,140 @@ class EmployeeSidebar extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Column(
-        children: [
-          // Logo
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.asset(
-                    'assets/images/app_icon/icon.png',
-                    width: 36,
-                    height: 36,
-                    fit: BoxFit.cover,
+          children: [
+            // Logo
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      'assets/images/app_icon/icon.png',
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  'Attendify',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-
-          _buildNavItem(context, 0, Icons.dashboard_rounded, 'Dashboard'),
-          _buildNavItem(context, 1, Icons.event_note_rounded, 'Attendance'),
-          _buildNavItem(context, 2, Icons.beach_access_rounded, 'Leaves'),
-          _buildNavItem(context, 3, Icons.receipt_long_rounded, 'Payslips'),
-          _buildNavItem(context, 4, Icons.trending_up_rounded, 'Performance'),
-          _buildNavItem(context, 5, Icons.account_balance_wallet_rounded, 'Expenses'),
-          _buildNavItem(context, 6, Icons.school_rounded, 'My Learning'),
-          _buildNavItem(context, 7, Icons.description_rounded, 'My Documents'),
-          _buildNavItem(context, 8, Icons.person_rounded, 'My Profile'),
-
-          const Spacer(),
-
-          // Bottom user info
-          Container(
-            margin: const EdgeInsets.all(14),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: const Color(0xFF22C55E),
-                  child: Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'E',
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Attendify',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        userName.length > 12 ? '${userName.substring(0, 12)}...' : userName,
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            _buildNavItem(context, 0, Icons.dashboard_rounded, 'Dashboard'),
+            _buildNavItem(context, 1, Icons.event_note_rounded, 'Attendance'),
+            _buildNavItem(context, 2, Icons.beach_access_rounded, 'Leaves'),
+            _buildNavItem(context, 3, Icons.receipt_long_rounded, 'Payslips'),
+            _buildNavItem(context, 4, Icons.trending_up_rounded, 'Performance'),
+            _buildNavItem(
+              context,
+              5,
+              Icons.account_balance_wallet_rounded,
+              'Expenses',
+            ),
+            _buildNavItem(context, 6, Icons.school_rounded, 'My Learning'),
+            _buildNavItem(
+              context,
+              7,
+              Icons.description_rounded,
+              'My Documents',
+            ),
+            _buildNavItem(context, 8, Icons.person_rounded, 'My Profile'),
+
+            const Spacer(),
+
+            // Bottom user info
+            Container(
+              margin: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: const Color(0xFF22C55E),
+                    child: Text(
+                      userName.isNotEmpty ? userName[0].toUpperCase() : 'E',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
-                      Text('Employee', style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
-                    ],
+                    ),
                   ),
-                ),
-
-                const SizedBox(width: 8),
-                InkWell(
-                  onTap: () async {
-                    await AuthService().signOut();
-
-                    if (!context.mounted) return;
-
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      '/login',
-                          (route) => false,
-                    );
-                  },
-                  child: Icon(
-                    Icons.logout_outlined,
-                    size: 18,
-                    color: Colors.grey.shade500,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          userName.length > 12
+                              ? '${userName.substring(0, 12)}...'
+                              : userName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade800,
+                          ),
+                        ),
+                        Text(
+                          'Employee',
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () async {
+                      await AuthService().signOut();
+
+                      if (!context.mounted) return;
+
+                      Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        '/login',
+                        (route) => false,
+                      );
+                    },
+                    child: Icon(
+                      Icons.logout_outlined,
+                      size: 18,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(BuildContext context, int index, IconData icon, String label) {
+  Widget _buildNavItem(
+    BuildContext context,
+    int index,
+    IconData icon,
+    String label,
+  ) {
     final bool isSelected = selectedIndex == index;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
@@ -146,19 +181,36 @@ class EmployeeSidebar extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF6366F1).withValues(alpha: 0.08) : Colors.transparent,
+              color: isSelected
+                  ? const Color(0xFF6366F1).withValues(alpha: 0.08)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
-              border: isSelected ? Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.2)) : null,
+              border: isSelected
+                  ? Border.all(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                    )
+                  : null,
             ),
             child: Row(
               children: [
-                Icon(icon, size: 18, color: isSelected ? const Color(0xFF6366F1) : Colors.grey.shade500),
+                Icon(
+                  icon,
+                  size: 18,
+                  color: isSelected
+                      ? const Color(0xFF6366F1)
+                      : Colors.grey.shade500,
+                ),
                 const SizedBox(width: 10),
-                Text(label, style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? const Color(0xFF6366F1) : Colors.grey.shade600,
-                )),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected
+                        ? const Color(0xFF6366F1)
+                        : Colors.grey.shade600,
+                  ),
+                ),
               ],
             ),
           ),

@@ -41,7 +41,10 @@ class FirestoreService {
 
   /// Get all employees
   Stream<QuerySnapshot> getEmployees() {
-    return _db.collection('users').where('role', isEqualTo: 'employee').snapshots();
+    return _db
+        .collection('users')
+        .where('role', whereIn: const ['employee', 'manager'])
+        .snapshots();
   }
 
   /// Get all attendance for a specific date (admin view)

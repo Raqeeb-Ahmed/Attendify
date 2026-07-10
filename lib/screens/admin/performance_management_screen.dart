@@ -4,13 +4,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class PerformanceManagementScreen extends StatefulWidget {
   final bool isMobile;
   final VoidCallback? onMenuPressed;
-  const PerformanceManagementScreen({super.key, this.isMobile = false, this.onMenuPressed});
+  const PerformanceManagementScreen({
+    super.key,
+    this.isMobile = false,
+    this.onMenuPressed,
+  });
 
   @override
-  State<PerformanceManagementScreen> createState() => _PerformanceManagementScreenState();
+  State<PerformanceManagementScreen> createState() =>
+      _PerformanceManagementScreenState();
 }
 
-class _PerformanceManagementScreenState extends State<PerformanceManagementScreen> {
+class _PerformanceManagementScreenState
+    extends State<PerformanceManagementScreen> {
   String _searchQuery = '';
 
   int _calcScore(List<Map<String, dynamic>> attRecords, int warnings) {
@@ -18,8 +24,11 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
     final late = attRecords.where((a) => a['status'] == 'late').length;
     final onTime = present - late;
     final totalHours = attRecords.fold<double>(
-        0, (acc, a) => acc + ((a['totalHours'] as num?)?.toDouble() ?? 0));
-    double score = 50 + (onTime * 1.5) - (late * 5) - (warnings * 20) + (totalHours * 0.1);
+      0,
+      (acc, a) => acc + ((a['totalHours'] as num?)?.toDouble() ?? 0),
+    );
+    double score =
+        50 + (onTime * 1.5) - (late * 5) - (warnings * 20) + (totalHours * 0.1);
     return score.clamp(0, 100).round();
   }
 
@@ -37,7 +46,10 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
     return 'Unsatisfactory';
   }
 
-  Future<void> _showAppraisalDialog(BuildContext context, Map<String, dynamic> emp) async {
+  Future<void> _showAppraisalDialog(
+    BuildContext context,
+    Map<String, dynamic> emp,
+  ) async {
     int rating = 3;
     final feedbackCtrl = TextEditingController();
 
@@ -45,28 +57,49 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: Text('Appraisal – ${emp['name']}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          title: Text(
+            'Appraisal – ${emp['name']}',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Rating', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+              Text(
+                'Rating',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade600,
+                ),
+              ),
               const SizedBox(height: 8),
               Row(
-                children: List.generate(5, (i) => IconButton(
-                  onPressed: () => setS(() => rating = i + 1),
-                  icon: Icon(
-                    i < rating ? Icons.star_rounded : Icons.star_outline_rounded,
-                    color: const Color(0xFFF59E0B),
-                    size: 28,
+                children: List.generate(
+                  5,
+                  (i) => IconButton(
+                    onPressed: () => setS(() => rating = i + 1),
+                    icon: Icon(
+                      i < rating
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: const Color(0xFFF59E0B),
+                      size: 28,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                )),
+                ),
               ),
               const SizedBox(height: 14),
-              Text('Feedback', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+              Text(
+                'Feedback',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade600,
+                ),
+              ),
               const SizedBox(height: 6),
               TextField(
                 controller: feedbackCtrl,
@@ -74,21 +107,30 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
                 decoration: InputDecoration(
                   hintText: 'Enter feedback...',
                   contentPadding: const EdgeInsets.all(12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.grey.shade300)),
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
                   focusedBorder: const OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                      borderSide: BorderSide(color: Color(0xFF6366F1))),
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                    borderSide: BorderSide(color: Color(0xFF6366F1)),
+                  ),
                 ),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366F1)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6366F1),
+              ),
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);
                 await FirebaseFirestore.instance.collection('appraisals').add({
@@ -100,10 +142,16 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
                 });
                 if (ctx.mounted) Navigator.pop(ctx);
                 messenger.showSnackBar(
-                  const SnackBar(content: Text('Appraisal saved'), backgroundColor: Color(0xFF22C55E)),
+                  const SnackBar(
+                    content: Text('Appraisal saved'),
+                    backgroundColor: Color(0xFF22C55E),
+                  ),
                 );
               },
-              child: const Text('Save Appraisal', style: TextStyle(color: Colors.white)),
+              child: const Text(
+                'Save Appraisal',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -126,11 +174,13 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('users')
-                    .where('role', isEqualTo: 'employee')
+                    .where('role', whereIn: const ['employee', 'manager'])
                     .snapshots(),
                 builder: (ctx, usersSnap) {
                   return StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('attendance').snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('attendance')
+                        .snapshots(),
                     builder: (ctx, attSnap) {
                       return StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
@@ -138,8 +188,13 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
                             .where('type', isEqualTo: 'warning')
                             .snapshots(),
                         builder: (ctx, warnSnap) {
-                          if (usersSnap.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)));
+                          if (usersSnap.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF6366F1),
+                              ),
+                            );
                           }
 
                           final attDocs = attSnap.data?.docs ?? [];
@@ -154,16 +209,25 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
 
                           final warnMap = <String, int>{};
                           for (var doc in warnDocs) {
-                            final uid = (doc.data() as Map<String, dynamic>)['userId'] as String? ?? '';
+                            final uid =
+                                (doc.data() as Map<String, dynamic>)['userId']
+                                    as String? ??
+                                '';
                             warnMap[uid] = (warnMap[uid] ?? 0) + 1;
                           }
 
                           final employees = (usersSnap.data?.docs ?? [])
-                              .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
-                              .where((e) =>
-                                  (e['name'] as String? ?? '')
-                                      .toLowerCase()
-                                      .contains(_searchQuery.toLowerCase()))
+                              .map(
+                                (d) => {
+                                  'id': d.id,
+                                  ...d.data() as Map<String, dynamic>,
+                                },
+                              )
+                              .where(
+                                (e) => (e['name'] as String? ?? '')
+                                    .toLowerCase()
+                                    .contains(_searchQuery.toLowerCase()),
+                              )
                               .toList();
 
                           return ListView.builder(
@@ -175,7 +239,13 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
                               final records = attMap[uid] ?? [];
                               final warnings = warnMap[uid] ?? 0;
                               final score = _calcScore(records, warnings);
-                              return _buildPerformanceCard(ctx, emp, records, warnings, score);
+                              return _buildPerformanceCard(
+                                ctx,
+                                emp,
+                                records,
+                                warnings,
+                                score,
+                              );
                             },
                           );
                         },
@@ -193,10 +263,19 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
 
   Widget _buildTopBar(bool isMobile, VoidCallback? onMenuPressed) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 32,
+        vertical: isMobile ? 12 : 16,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -204,17 +283,39 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
             IconButton(
               icon: const Icon(Icons.menu_rounded),
               onPressed: onMenuPressed,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
             ),
-          const Icon(Icons.trending_up_rounded, color: Color(0xFF6366F1), size: 22),
+          if (isMobile && onMenuPressed != null) const SizedBox(width: 8),
+          const Icon(
+            Icons.trending_up_rounded,
+            color: Color(0xFF6366F1),
+            size: 22,
+          ),
           const SizedBox(width: 12),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Performance Management',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-              Text('Track KPIs, ratings, and appraisals',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Performance Management',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isMobile ? 16 : 20,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                Text(
+                  'Track KPIs, ratings, and appraisals',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isMobile ? 10 : 12,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -234,21 +335,39 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
           filled: true,
           fillColor: const Color(0xFFF8FAFC),
           contentPadding: const EdgeInsets.symmetric(vertical: 10),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade200)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade200)),
-          focusedBorder: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10)), borderSide: BorderSide(color: Color(0xFF6366F1))),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+            borderSide: BorderSide(color: Color(0xFF6366F1)),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildPerformanceCard(BuildContext ctx, Map<String, dynamic> emp,
-      List<Map<String, dynamic>> records, int warnings, int score) {
+  Widget _buildPerformanceCard(
+    BuildContext ctx,
+    Map<String, dynamic> emp,
+    List<Map<String, dynamic>> records,
+    int warnings,
+    int score,
+  ) {
     final name = emp['name'] as String? ?? 'Unknown';
     final email = emp['email'] as String? ?? '';
     final dept = emp['department'] as String? ?? 'N/A';
-    final initials =
-        name.split(' ').take(2).map((p) => p.isNotEmpty ? p[0] : '').join().toUpperCase();
+    final initials = name
+        .split(' ')
+        .take(2)
+        .map((p) => p.isNotEmpty ? p[0] : '')
+        .join()
+        .toUpperCase();
     final late = records.where((r) => r['status'] == 'late').length;
     final scoreColor = _scoreColor(score);
 
@@ -257,7 +376,13 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -269,16 +394,37 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: scoreColor.withValues(alpha: 0.12),
-                  child: Text(initials,
-                      style: TextStyle(color: scoreColor, fontSize: 13, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    initials,
+                    style: TextStyle(
+                      color: scoreColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
-                      Text('$email · $dept', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      Text(
+                        '$email · $dept',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -286,8 +432,22 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('$score', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: scoreColor)),
-                    Text(_scoreLabel(score), style: TextStyle(fontSize: 10, color: scoreColor, fontWeight: FontWeight.w600)),
+                    Text(
+                      '$score',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: scoreColor,
+                      ),
+                    ),
+                    Text(
+                      _scoreLabel(score),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: scoreColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -303,36 +463,27 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
               ),
             ),
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Flexible(
-                  child: _kpiChip(
-                    Icons.calendar_today_rounded,
-                    '${records.length} Days',
-                    const Color(0xFF6366F1),
-                  ),
+                _kpiChip(
+                  Icons.calendar_today_rounded,
+                  '${records.length} Days',
+                  const Color(0xFF6366F1),
                 ),
-                const SizedBox(width: 6),
-
-                Flexible(
-                  child: _kpiChip(
-                    Icons.warning_amber_rounded,
-                    '$late Late',
-                    const Color(0xFFF59E0B),
-                  ),
+                _kpiChip(
+                  Icons.warning_amber_rounded,
+                  '$late Late',
+                  const Color(0xFFF59E0B),
                 ),
-                const SizedBox(width: 6),
-
-                Flexible(
-                  child: _kpiChip(
-                    Icons.error_outline_rounded,
-                    '$warnings Warnings',
-                    const Color(0xFFDC2626),
-                  ),
+                _kpiChip(
+                  Icons.error_outline_rounded,
+                  '$warnings Warnings',
+                  const Color(0xFFDC2626),
                 ),
-
-                const Spacer(),
-
+                const SizedBox(width: 4),
                 TextButton.icon(
                   onPressed: () => _showAppraisalDialog(ctx, emp),
                   icon: const Icon(Icons.rate_review_outlined, size: 12),
@@ -340,9 +491,17 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
                     'Appraise',
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
                   ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ],
-            )
+            ),
           ],
         ),
       ),
@@ -373,7 +532,7 @@ class _PerformanceManagementScreenState extends State<PerformanceManagementScree
             ),
           ),
         ],
-      )
+      ),
     );
   }
 }

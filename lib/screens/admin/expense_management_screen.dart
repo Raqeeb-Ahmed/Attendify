@@ -99,7 +99,7 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
 
   Widget _buildTopBar(bool isMobile, VoidCallback? onMenuPressed) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: 16),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 32, vertical: isMobile ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
@@ -110,17 +110,35 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
             IconButton(
               icon: const Icon(Icons.menu_rounded),
               onPressed: onMenuPressed,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
             ),
+          if (isMobile && onMenuPressed != null) const SizedBox(width: 8),
           const Icon(Icons.receipt_long_rounded, color: Color(0xFF6366F1), size: 22),
           const SizedBox(width: 12),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Expense Management',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-              Text('Review and approve employee expense claims',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Expense Management',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isMobile ? 16 : 20,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                Text(
+                  'Review and approve employee claims',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isMobile ? 10 : 12,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -131,28 +149,31 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       color: Colors.white,
-      child: Row(
-        children: _statusTabs.map((tab) {
-          final isActive = _filterStatus == tab['id'];
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => setState(() => _filterStatus = tab['id']!),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isActive ? const Color(0xFF6366F1) : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(20),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: _statusTabs.map((tab) {
+            final isActive = _filterStatus == tab['id'];
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () => setState(() => _filterStatus = tab['id']!),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isActive ? const Color(0xFF6366F1) : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(tab['label']!,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : Colors.grey.shade600)),
                 ),
-                child: Text(tab['label']!,
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isActive ? Colors.white : Colors.grey.shade600)),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }

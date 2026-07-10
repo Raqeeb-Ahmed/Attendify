@@ -74,13 +74,13 @@ class BackgroundCheckInService {
         customWifiNames: AppConfig.officeWifiNames,
       );
 
-      // 3. Start background location service for geofence detection
-      _locationService.startTracking(
-        userId,
-        userName,
-        email,
-        department: department,
-      );
+      // 3. Start background location service for geofence detection (Disabling duplicate; Foreground service handles this)
+      // _locationService.startTracking(
+      //   userId,
+      //   userName,
+      //   email,
+      //   department: department,
+      // );
 
       // 4. Start foreground service for continuous tracking
       await ForegroundTrackingService.start(
@@ -89,9 +89,9 @@ class BackgroundCheckInService {
         email: email,
       );
 
-      // 5. Start attendance service timers
-      _attendanceService.startHeartbeat(userId);
-      _attendanceService.startLocationTracking(userId);
+      // 5. Start attendance service timers (Disabling duplicate; Foreground service handles heartbeats and updates)
+      // _attendanceService.startHeartbeat(userId);
+      // _attendanceService.startLocationTracking(userId);
       _attendanceService.startAutoCheckoutTimer(userId);
 
       _isRunning = true;

@@ -5,7 +5,11 @@ import 'package:intl/intl.dart';
 class HRAnalyticsScreen extends StatefulWidget {
   final bool isMobile;
   final VoidCallback? onMenuPressed;
-  const HRAnalyticsScreen({super.key, this.isMobile = false, this.onMenuPressed});
+  const HRAnalyticsScreen({
+    super.key,
+    this.isMobile = false,
+    this.onMenuPressed,
+  });
 
   @override
   State<HRAnalyticsScreen> createState() => _HRAnalyticsScreenState();
@@ -26,14 +30,22 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('users')
-                    .where('role', isEqualTo: 'employee')
+                    .where('role', whereIn: const ['employee', 'manager'])
                     .snapshots(),
                 builder: (ctx, usersSnap) {
                   return StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
-                    .collection('attendance')
-                    .where('date', isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 30))))
-                    .snapshots(),
+                        .collection('attendance')
+                        .where(
+                          'date',
+                          isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd')
+                              .format(
+                                DateTime.now().subtract(
+                                  const Duration(days: 30),
+                                ),
+                              ),
+                        )
+                        .snapshots(),
                     builder: (ctx, attSnap) {
                       return StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
@@ -55,26 +67,42 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
                               int presentToday = 0;
                               int lateToday = 0;
                               int outsideToday = 0;
-                              final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+                              final today = DateFormat(
+                                'yyyy-MM-dd',
+                              ).format(DateTime.now());
 
                               final deptMap = <String, int>{};
                               final deptLate = <String, int>{};
 
                               for (var doc in attDocs) {
                                 final d = doc.data() as Map<String, dynamic>;
-                                final dept = d['department'] as String? ?? 'Unknown';
+                                final dept =
+                                    d['department'] as String? ?? 'Unknown';
                                 if (d['date'] == today) {
                                   final s = d['status'] as String? ?? '';
-                                  if (s == 'present') { presentToday++; }
-                                  else if (s == 'late') { lateToday++; deptLate[dept] = (deptLate[dept] ?? 0) + 1; }
-                                  else if (s == 'outside') { outsideToday++; }
+                                  if (s == 'present') {
+                                    presentToday++;
+                                  } else if (s == 'late') {
+                                    lateToday++;
+                                    deptLate[dept] = (deptLate[dept] ?? 0) + 1;
+                                  } else if (s == 'outside') {
+                                    outsideToday++;
+                                  }
                                 }
                                 deptMap[dept] = (deptMap[dept] ?? 0) + 1;
                               }
 
                               double totalExpenses = 0;
                               for (var doc in expDocs) {
-                                totalExpenses += ((doc.data() as Map<String, dynamic>)['amount'] as num?)?.toDouble() ?? 0;
+                                totalExpenses +=
+                                    ((doc.data()
+                                                as Map<
+                                                  String,
+                                                  dynamic
+                                                >)['amount']
+                                            as num?)
+                                        ?.toDouble() ??
+                                    0;
                               }
 
                               final fmt = NumberFormat('#,##0', 'en_US');
@@ -91,12 +119,48 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
                                       spacing: 14,
                                       runSpacing: 14,
                                       children: [
-                                        _kpiCard('Total Employees', '$totalEmp', Icons.people_rounded, const Color(0xFF6366F1), const Color(0xFFEEF2FF)),
-                                        _kpiCard('Present Today', '$presentToday', Icons.check_circle_rounded, const Color(0xFF22C55E), const Color(0xFFF0FDF4)),
-                                        _kpiCard('Late Today', '$lateToday', Icons.warning_amber_rounded, const Color(0xFFF59E0B), const Color(0xFFFEF3C7)),
-                                        _kpiCard('Out of System', '$outsideToday', Icons.logout_rounded, const Color(0xFFF97316), const Color(0xFFFFF7ED)),
-                                        _kpiCard('Approved Leaves', '${leaveDocs.length}', Icons.beach_access_rounded, const Color(0xFF06B6D4), const Color(0xFFECFEFF)),
-                                        _kpiCard('Total Expenses', 'PKR ${fmt.format(totalExpenses)}', Icons.account_balance_wallet_rounded, const Color(0xFF8B5CF6), const Color(0xFFF5F3FF)),
+                                        _kpiCard(
+                                          'Total Employees',
+                                          '$totalEmp',
+                                          Icons.people_rounded,
+                                          const Color(0xFF6366F1),
+                                          const Color(0xFFEEF2FF),
+                                        ),
+                                        _kpiCard(
+                                          'Present Today',
+                                          '$presentToday',
+                                          Icons.check_circle_rounded,
+                                          const Color(0xFF22C55E),
+                                          const Color(0xFFF0FDF4),
+                                        ),
+                                        _kpiCard(
+                                          'Late Today',
+                                          '$lateToday',
+                                          Icons.warning_amber_rounded,
+                                          const Color(0xFFF59E0B),
+                                          const Color(0xFFFEF3C7),
+                                        ),
+                                        _kpiCard(
+                                          'Out of System',
+                                          '$outsideToday',
+                                          Icons.logout_rounded,
+                                          const Color(0xFFF97316),
+                                          const Color(0xFFFFF7ED),
+                                        ),
+                                        _kpiCard(
+                                          'Approved Leaves',
+                                          '${leaveDocs.length}',
+                                          Icons.beach_access_rounded,
+                                          const Color(0xFF06B6D4),
+                                          const Color(0xFFECFEFF),
+                                        ),
+                                        _kpiCard(
+                                          'Total Expenses',
+                                          'PKR ${fmt.format(totalExpenses)}',
+                                          Icons.account_balance_wallet_rounded,
+                                          const Color(0xFF8B5CF6),
+                                          const Color(0xFFF5F3FF),
+                                        ),
                                       ],
                                     ),
                                     const SizedBox(height: 24),
@@ -104,7 +168,12 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
                                     // Attendance trend
                                     _sectionTitle('Attendance Rate'),
                                     const SizedBox(height: 12),
-                                    _buildAttendanceRateCard(totalEmp, presentToday, lateToday, outsideToday),
+                                    _buildAttendanceRateCard(
+                                      totalEmp,
+                                      presentToday,
+                                      lateToday,
+                                      outsideToday,
+                                    ),
                                     const SizedBox(height: 24),
 
                                     // Department breakdown
@@ -138,16 +207,31 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
   }
 
   Widget _sectionTitle(String title) {
-    return Text(title,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)));
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF1E293B),
+      ),
+    );
   }
 
   Widget _buildTopBar(bool isMobile, VoidCallback? onMenuPressed) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 32,
+        vertical: isMobile ? 12 : 16,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -155,51 +239,109 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
             IconButton(
               icon: const Icon(Icons.menu_rounded),
               onPressed: onMenuPressed,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
             ),
-          const Icon(Icons.bar_chart_rounded, color: Color(0xFF6366F1), size: 22),
+          if (isMobile && onMenuPressed != null) const SizedBox(width: 8),
+          const Icon(
+            Icons.bar_chart_rounded,
+            color: Color(0xFF6366F1),
+            size: 22,
+          ),
           const SizedBox(width: 12),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('HR Analytics',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-              Text('Workforce insights and KPIs',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'HR Analytics',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isMobile ? 16 : 20,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                Text(
+                  'Workforce insights and KPIs',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isMobile ? 10 : 12,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _kpiCard(String label, String value, IconData icon, Color color, Color bg) {
+  Widget _kpiCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    Color bg,
+  ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
+    final cardWidth = isMobile ? (screenWidth - 32 - 14) / 2 : 170.0;
     return Container(
-      width: 170,
+      width: cardWidth,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(height: 12),
-          Text(value,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF1E293B))),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E293B),
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildAttendanceRateCard(int total, int present, int late, int outside) {
+  Widget _buildAttendanceRateCard(
+    int total,
+    int present,
+    int late,
+    int outside,
+  ) {
     final rate = total > 0 ? ((present + late) / total * 100).round() : 0;
     final pendingCount = total - present - late - outside;
 
@@ -208,25 +350,49 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text('$rate%',
-                  style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w800,
-                      color: rate >= 80 ? const Color(0xFF22C55E) : const Color(0xFFF59E0B))),
+              Text(
+                '$rate%',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w800,
+                  color: rate >= 80
+                      ? const Color(0xFF22C55E)
+                      : const Color(0xFFF59E0B),
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Attendance Rate', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                    Text('$total total employees', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    Text(
+                      'Attendance Rate',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    Text(
+                      '$total total employees',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -239,10 +405,26 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
               height: 10,
               child: Row(
                 children: [
-                  if (present > 0) Expanded(flex: present, child: Container(color: const Color(0xFF22C55E))),
-                  if (late > 0) Expanded(flex: late, child: Container(color: const Color(0xFFF59E0B))),
-                  if (outside > 0) Expanded(flex: outside, child: Container(color: const Color(0xFFF97316))),
-                  if (pendingCount > 0) Expanded(flex: pendingCount, child: Container(color: const Color(0xFFCBD5E1))),
+                  if (present > 0)
+                    Expanded(
+                      flex: present,
+                      child: Container(color: const Color(0xFF22C55E)),
+                    ),
+                  if (late > 0)
+                    Expanded(
+                      flex: late,
+                      child: Container(color: const Color(0xFFF59E0B)),
+                    ),
+                  if (outside > 0)
+                    Expanded(
+                      flex: outside,
+                      child: Container(color: const Color(0xFFF97316)),
+                    ),
+                  if (pendingCount > 0)
+                    Expanded(
+                      flex: pendingCount,
+                      child: Container(color: const Color(0xFFCBD5E1)),
+                    ),
                 ],
               ),
             ),
@@ -267,15 +449,33 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildDeptBreakdown(Map<String, int> deptMap, Map<String, int> deptLate) {
-    final sorted = deptMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  Widget _buildDeptBreakdown(
+    Map<String, int> deptMap,
+    Map<String, int> deptLate,
+  ) {
+    final sorted = deptMap.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     if (sorted.isEmpty) return const SizedBox.shrink();
     final max = sorted.first.value;
 
@@ -284,7 +484,13 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: sorted.map((entry) {
@@ -294,10 +500,16 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
             child: Row(
               children: [
                 SizedBox(
-                  width: 110,
-                  child: Text(entry.key,
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
-                      overflow: TextOverflow.ellipsis),
+                  width: MediaQuery.of(context).size.width < 450 ? 80 : 110,
+                  child: Text(
+                    entry.key,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -307,24 +519,44 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
                       value: entry.value / max,
                       minHeight: 8,
                       backgroundColor: const Color(0xFFEEF2FF),
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFF6366F1),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 SizedBox(
                   width: 30,
-                  child: Text('${entry.value}',
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+                  child: Text(
+                    '${entry.value}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
                 ),
                 if (lateCount > 0) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: const Color(0xFFFEF9C3), borderRadius: BorderRadius.circular(6)),
-                    child: Text('$lateCount late',
-                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFFCA8A04))),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF9C3),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$lateCount late',
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFCA8A04),
+                      ),
+                    ),
                   ),
                 ],
               ],
@@ -335,7 +567,10 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
     );
   }
 
-  Widget _buildRecentAttendance(List<QueryDocumentSnapshot> docs, String today) {
+  Widget _buildRecentAttendance(
+    List<QueryDocumentSnapshot> docs,
+    String today,
+  ) {
     final todayDocs = docs
         .where((d) => (d.data() as Map<String, dynamic>)['date'] == today)
         .take(10)
@@ -348,7 +583,12 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Center(child: Text('No attendance records for today', style: TextStyle(color: Colors.grey.shade400))),
+        child: Center(
+          child: Text(
+            'No attendance records for today',
+            style: TextStyle(color: Colors.grey.shade400),
+          ),
+        ),
       );
     }
 
@@ -356,7 +596,13 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: todayDocs.map((doc) {
@@ -371,25 +617,62 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
           Color statusColor;
           Color statusBg;
           switch (status) {
-            case 'present': statusColor = const Color(0xFF16A34A); statusBg = const Color(0xFFDCFCE7); break;
-            case 'late': statusColor = const Color(0xFFCA8A04); statusBg = const Color(0xFFFEF9C3); break;
-            case 'outside': statusColor = const Color(0xFFEA580C); statusBg = const Color(0xFFFFEDD5); break;
-            default: statusColor = const Color(0xFF64748B); statusBg = const Color(0xFFF1F5F9);
+            case 'present':
+              statusColor = const Color(0xFF16A34A);
+              statusBg = const Color(0xFFDCFCE7);
+              break;
+            case 'late':
+              statusColor = const Color(0xFFCA8A04);
+              statusBg = const Color(0xFFFEF9C3);
+              break;
+            case 'outside':
+              statusColor = const Color(0xFFEA580C);
+              statusBg = const Color(0xFFFFEDD5);
+              break;
+            default:
+              statusColor = const Color(0xFF64748B);
+              statusBg = const Color(0xFFF1F5F9);
           }
 
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+            ),
             child: Row(
               children: [
-                Expanded(child: Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)))),
-                Text(checkInStr, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ),
+                Text(
+                  checkInStr,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
                 const SizedBox(width: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(8)),
-                  child: Text(status[0].toUpperCase() + status.substring(1),
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    status[0].toUpperCase() + status.substring(1),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
                 ),
               ],
             ),

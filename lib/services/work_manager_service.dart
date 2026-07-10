@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:http/http.dart' as http;
 import '../utils/app_config.dart';
@@ -44,14 +45,14 @@ void callbackDispatcher() {
 }
 
 Future<void> _runHeartbeat(String uid, String name, String email) async {
-  final db = FirebaseFirestore.instance;
-  await db.collection('heartbeats').doc(uid).set({
+  final rtdb = FirebaseDatabase.instance;
+  await rtdb.ref('presence/$uid').set({
     'userId': uid,
     'userName': name,
     'email': email,
     'lastSeen': DateTime.now().toIso8601String(),
     'online': true,
-  }, SetOptions(merge: true));
+  });
 }
 
 Future<void> _runLocationUpdate(
@@ -130,19 +131,21 @@ Future<void> _runLocationUpdate(
   // Online: Sync any cached offline locations first
   await OfflineLocationService().syncCachedLocations(uid);
 
-  // Update heartbeat
-  await db.collection('heartbeats').doc(uid).set({
+  final rtdb = FirebaseDatabase.instance;
+
+  // Update heartbeat in Realtime Database to save requests
+  await rtdb.ref('presence/$uid').set({
     'userId': uid,
     'userName': name,
     'email': email,
     'lastSeen': nowIso,
     'online': true,
-  }, SetOptions(merge: true));
+  });
 
-  // Update live location
-  await db.collection('locations').doc('${uid}_latest').set(locationData);
+  // Update live location in Realtime Database to save requests
+  await rtdb.ref('locations/${uid}_latest').set(locationData);
 
-  // Add to locations log history
+  // Add to locations log history in Firestore (backup/logging)
   await db.collection('locations').add(locationData);
 
   // Auto check-in logic - Check via GPS

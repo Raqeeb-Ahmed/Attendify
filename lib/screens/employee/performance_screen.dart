@@ -12,7 +12,7 @@ class PerformanceScreen extends StatefulWidget {
 
 class _PerformanceScreenState extends State<PerformanceScreen> {
   final user = FirebaseAuth.instance.currentUser;
-  
+
   Map<String, dynamic>? _performanceData;
   List<Map<String, dynamic>> _reviews = [];
   List<Map<String, dynamic>> _goals = [];
@@ -26,7 +26,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
 
   Future<void> _fetchPerformanceData() async {
     if (user == null) return;
-    
+
     setState(() => _isLoading = true);
     try {
       // Fetch performance metrics
@@ -34,7 +34,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           .collection('performance')
           .doc(user!.uid)
           .get();
-      
+
       if (perfDoc.exists) {
         setState(() => _performanceData = perfDoc.data());
       }
@@ -46,12 +46,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           .orderBy('date', descending: true)
           .limit(5)
           .get();
-      
+
       setState(() {
-        _reviews = reviewsSnapshot.docs.map((doc) => {
-          'id': doc.id,
-          ...doc.data(),
-        }).toList();
+        _reviews = reviewsSnapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data()})
+            .toList();
       });
 
       // Fetch goals
@@ -60,12 +59,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           .where('userId', isEqualTo: user!.uid)
           // .orderBy('createdAt', descending: true)
           .get();
-      
+
       setState(() {
-        _goals = goalsSnapshot.docs.map((doc) => {
-          'id': doc.id,
-          ...doc.data(),
-        }).toList();
+        _goals = goalsSnapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data()})
+            .toList();
       });
     } catch (e) {
       debugPrint('Error fetching performance data: $e');
@@ -91,7 +89,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
-          tooltip: 'Menu',
+          // tooltip: 'Menu',
         ),
         title: const Text(
           'Performance',
@@ -103,7 +101,9 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6366F1)),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -111,10 +111,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                 children: [
                   const Text(
                     'Track your performance metrics and goals',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF64748B),
-                    ),
+                    style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
                   ),
                   const SizedBox(height: 24),
 
@@ -213,13 +210,29 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        _buildMetricBar('Productivity', productivity, const Color(0xFF6366F1)),
+                        _buildMetricBar(
+                          'Productivity',
+                          productivity,
+                          const Color(0xFF6366F1),
+                        ),
                         const SizedBox(height: 16),
-                        _buildMetricBar('Quality', quality, const Color(0xFF22C55E)),
+                        _buildMetricBar(
+                          'Quality',
+                          quality,
+                          const Color(0xFF22C55E),
+                        ),
                         const SizedBox(height: 16),
-                        _buildMetricBar('Teamwork', teamwork, const Color(0xFFF59E0B)),
+                        _buildMetricBar(
+                          'Teamwork',
+                          teamwork,
+                          const Color(0xFFF59E0B),
+                        ),
                         const SizedBox(height: 16),
-                        _buildMetricBar('Communication', communication, const Color(0xFF8B5CF6)),
+                        _buildMetricBar(
+                          'Communication',
+                          communication,
+                          const Color(0xFF8B5CF6),
+                        ),
                       ],
                     ),
                   ),
@@ -244,7 +257,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                 color: const Color(0xFFEEF2FF),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.flag, color: Color(0xFF6366F1), size: 18),
+                              child: const Icon(
+                                Icons.flag,
+                                color: Color(0xFF6366F1),
+                                size: 18,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             const Text(
@@ -272,7 +289,9 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                 ),
                               )
                             : Column(
-                                children: _goals.map((goal) => _buildGoalItem(goal)).toList(),
+                                children: _goals
+                                    .map((goal) => _buildGoalItem(goal))
+                                    .toList(),
                               ),
                       ],
                     ),
@@ -298,7 +317,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                 color: const Color(0xFFEEF2FF),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.rate_review, color: Color(0xFF6366F1), size: 18),
+                              child: const Icon(
+                                Icons.rate_review,
+                                color: Color(0xFF6366F1),
+                                size: 18,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             const Text(
@@ -326,7 +349,9 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                                 ),
                               )
                             : Column(
-                                children: _reviews.map((review) => _buildReviewItem(review)).toList(),
+                                children: _reviews
+                                    .map((review) => _buildReviewItem(review))
+                                    .toList(),
                               ),
                       ],
                     ),
@@ -339,7 +364,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
 
   Widget _buildMetricBar(String label, double value, Color color) {
     final percentage = (value / 5.0 * 100).round();
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -389,10 +414,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         const SizedBox(height: 4),
         Text(
           '$percentage%',
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF94A3B8),
-          ),
+          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
         ),
       ],
     );
@@ -427,7 +449,10 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
               ),
               if (isCompleted)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF0FDF4),
                     borderRadius: BorderRadius.circular(12),
@@ -435,7 +460,11 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_circle, size: 12, color: Color(0xFF22C55E)),
+                      Icon(
+                        Icons.check_circle,
+                        size: 12,
+                        color: Color(0xFF22C55E),
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'DONE',
@@ -454,10 +483,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             const SizedBox(height: 8),
             Text(
               goal['description'],
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF64748B),
-              ),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -480,7 +506,9 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                       child: Container(
                         height: 6,
                         decoration: BoxDecoration(
-                          color: isCompleted ? const Color(0xFF22C55E) : const Color(0xFF6366F1),
+                          color: isCompleted
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFF6366F1),
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
@@ -494,7 +522,9 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: isCompleted ? const Color(0xFF22C55E) : const Color(0xFF6366F1),
+                  color: isCompleted
+                      ? const Color(0xFF22C55E)
+                      : const Color(0xFF6366F1),
                 ),
               ),
             ],
@@ -506,7 +536,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
 
   Widget _buildReviewItem(Map<String, dynamic> review) {
     final rating = (review['rating'] ?? 0).toDouble();
-    final date = review['date'] != null 
+    final date = review['date'] != null
         ? DateFormat('MMM dd, yyyy').format(DateTime.parse(review['date']))
         : 'Unknown date';
 
@@ -552,34 +582,41 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
           const SizedBox(height: 8),
           Text(
             review['feedback'] ?? 'No feedback provided',
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF64748B),
-            ),
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Icon(Icons.person, size: 14, color: Colors.grey.shade400),
-              const SizedBox(width: 4),
-              Text(
-                review['reviewerName'] ?? 'Manager',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade600,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.person, size: 14, color: Colors.grey.shade400),
+                  const SizedBox(width: 4),
+                  Text(
+                    review['reviewerName'] ?? 'Manager',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade400),
-              const SizedBox(width: 4),
-              Text(
-                date,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade600,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.calendar_today,
+                    size: 14,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    date,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
               ),
             ],
           ),

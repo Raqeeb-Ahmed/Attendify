@@ -312,14 +312,12 @@ class AttendanceService {
     try {
       final nowIso = DateTime.now().toIso8601String();
 
-      // Only write the lightweight heartbeats doc — attendance lastActive
-      // is updated by the location tracker (every 120s) which already does
-      // a read+write there, avoiding a duplicate read here every 60s.
-      await _db.collection('heartbeats').doc(userId).set({
+      // Write heartbeat directly to Realtime Database to save Firestore requests
+      await _rtdb.ref('presence/$userId').set({
         'userId': userId,
         'lastSeen': nowIso,
         'online': true,
-      }, SetOptions(merge: true));
+      });
     } catch (e) {
       debugPrint("Heartbeat failed: $e");
     }
@@ -333,10 +331,12 @@ class AttendanceService {
       connectedRef.onValue.listen((event) {
         if (event.snapshot.value == true) {
           presenceRef.onDisconnect().set({
+            'userId': userId,
             'online': false,
             'lastSeen': DateTime.now().toIso8601String(),
           }).then((_) {
             presenceRef.set({
+              'userId': userId,
               'online': true,
               'lastSeen': DateTime.now().toIso8601String(),
             });
@@ -353,16 +353,16 @@ class AttendanceService {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
 
-    // Mark offline
-    _db.collection('heartbeats').doc(userId).set({
-      'userId': userId,
-      'lastSeen': DateTime.now().toIso8601String(),
-      'online': false,
-    });
+    // Disabling Firestore heartbeats write to save writes
+    // _db.collection('heartbeats').doc(userId).set({...});
 
     try {
       final presenceRef = _rtdb.ref('presence/$userId');
-      presenceRef.set({'online': false, 'lastSeen': DateTime.now().toIso8601String()});
+      presenceRef.set({
+        'userId': userId,
+        'online': false,
+        'lastSeen': DateTime.now().toIso8601String(),
+      });
     } catch (e) {
       debugPrint("RTDB presence update failed: $e");
     }
@@ -536,6 +536,7 @@ class AttendanceService {
   Future<void> _updateTimeTrackingInternal(String userId, DateTime now, bool isInside, String nowIso, {String? overrideAttendanceDate}) async {
     // Resolve the correct attendance document
     final String attendanceId;
+
     if (overrideAttendanceDate != null) {
       attendanceId = '${userId}_$overrideAttendanceDate';
     } else {
@@ -551,14 +552,29 @@ class AttendanceService {
     // If there is no checkInTime yet, nothing to track against.
     if (attData['checkInTime'] == null) return;
 
+
     final alreadyCheckedOut = attData['checkOutTime'] != null;
     final currentMinutes = now.hour * 60 + now.minute;
     final updates = <String, dynamic>{};
+
+    debugPrint("CheckOut : ${attData['checkOutTime']}");
+    debugPrint("Status : ${attData['sessionStatus']}");
+    debugPrint("Inside : $isInside");
+    debugPrint("LastActive : ${attData['lastActive']}");
+    debugPrint("Now : $nowIso");
+    debugPrint("Current Minutes : $currentMinutes");
+    debugPrint("Office End : $officeEndMinutes");
 
     // ── Interval-based metric accumulation ──────────────────────────────────
     if (attData['lastActive'] != null) {
       final lastDate = DateTime.parse(attData['lastActive']);
       final diffMins = now.difference(lastDate).inMinutes;
+
+      debugPrint("Diff Minutes : $diffMins");
+
+      debugPrint("Last Active : ${attData['lastActive']}");
+      debugPrint("Now : $nowIso");
+      debugPrint("Difference : $diffMins");
 
       if (diffMins > 0 && diffMins < 20) {
         // ── Active tracking interval (< 20 min gap) ───────────────────────
@@ -625,8 +641,8 @@ class AttendanceService {
   }
 
   // ── Stream Heartbeats (Admin) ──
-  Stream<QuerySnapshot> getHeartbeats() {
-    return _db.collection('heartbeats').snapshots();
+  Stream<DatabaseEvent> getHeartbeats() {
+    return _rtdb.ref('presence').onValue;
   }
 
   // ── Stream Locations (Admin) ──

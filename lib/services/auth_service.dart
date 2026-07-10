@@ -5,6 +5,7 @@ import '../utils/app_config.dart';
 import '../utils/firebase_exception_handler.dart';
 import 'work_manager_service.dart';
 import 'foreground_tracking_service.dart';
+import 'push_notification_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -52,6 +53,10 @@ class AuthService {
         credential,
       );
       debugPrint("Firebase Sign-In Successful");
+
+      // Register Push Notification Token
+      await PushNotificationService.instance.registerUserToken(userCredential.user!.uid);
+
       return userCredential;
     } on FirebaseAuthException catch (e) {
       debugPrint("FirebaseAuthException: ${e.code} - ${e.message}");
@@ -65,6 +70,12 @@ class AuthService {
   /// Sign out from both Firebase + Google and cancel background tasks
   Future<void> signOut() async {
     try {
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        // Remove push notification token before signing out
+        await PushNotificationService.instance.removeUserToken(currentUser.uid);
+      }
+
       await WorkManagerService.cancelAll();
       await ForegroundTrackingService.stop();
       await _googleSignIn.signOut();

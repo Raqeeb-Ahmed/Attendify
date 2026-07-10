@@ -1,4 +1,4 @@
-package com.attendo.app
+package com.attendo.attendance
 
 import io.flutter.embedding.android.FlutterActivity
 

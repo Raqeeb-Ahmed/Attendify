@@ -25,7 +25,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     'Transportation',
     'Office Supplies',
     'Training',
-    'Other'
+    'Other',
   ];
 
   @override
@@ -131,99 +131,218 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Category',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF475569),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              DropdownButtonFormField<String>(
-                                initialValue: _selectedCategory,
-                                isExpanded: true,
-                                decoration: InputDecoration(
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                ),
-                                items: _categories.map((category) {
-                                  return DropdownMenuItem(
-                                    value: category,
-                                    child: Text(category),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  setModalState(() => _selectedCategory = value!);
-                                },
-                              ),
-                            ],
+                    if (MediaQuery.of(context).size.width < 450) ...[
+                      const Text(
+                        'Category',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedCategory,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF6366F1),
+                              width: 2,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Amount (PKR)',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF475569),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                controller: _amountController,
-                                keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Required';
-                                  }
-                                  if (double.tryParse(value) == null) {
-                                    return 'Invalid amount';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ],
+                        items: _categories.map((category) {
+                          return DropdownMenuItem(
+                            value: category,
+                            child: Text(category),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setModalState(() => _selectedCategory = value!);
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Amount (PKR)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _amountController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF6366F1),
+                              width: 2,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
                         ),
-                      ],
-                    ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Required';
+                          }
+                          if (double.tryParse(value) == null) {
+                            return 'Invalid amount';
+                          }
+                          return null;
+                        },
+                      ),
+                    ] else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Category',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF475569),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                DropdownButtonFormField<String>(
+                                  initialValue: _selectedCategory,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF6366F1),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  items: _categories.map((category) {
+                                    return DropdownMenuItem(
+                                      value: category,
+                                      child: Text(category),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setModalState(
+                                      () => _selectedCategory = value!,
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Amount (PKR)',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF475569),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _amountController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF6366F1),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Required';
+                                    }
+                                    if (double.tryParse(value) == null) {
+                                      return 'Invalid amount';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     const SizedBox(height: 20),
                     const Text(
                       'Expense Date',
@@ -247,7 +366,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         }
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                           borderRadius: BorderRadius.circular(12),
@@ -259,7 +381,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                               DateFormat('MMM dd, yyyy').format(_selectedDate),
                               style: const TextStyle(fontSize: 15),
                             ),
-                            const Icon(Icons.calendar_today, size: 18, color: Color(0xFF6366F1)),
+                            const Icon(
+                              Icons.calendar_today,
+                              size: 18,
+                              color: Color(0xFF6366F1),
+                            ),
                           ],
                         ),
                       ),
@@ -281,15 +407,22 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         hintText: 'What was this expense for?',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF6366F1),
+                            width: 2,
+                          ),
                         ),
                         contentPadding: const EdgeInsets.all(16),
                       ),
@@ -342,7 +475,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                                     width: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
                                     ),
                                   )
                                 : const Text(
@@ -379,7 +514,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
-          tooltip: 'Menu',
+          // tooltip: 'Menu',
         ),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,7 +548,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 backgroundColor: const Color(0xFF6366F1),
                 foregroundColor: Colors.white,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -429,8 +567,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             .orderBy('createdAt', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-
-
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -463,10 +599,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Submit your first claim to get started',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                   ),
                 ],
               ),
@@ -505,9 +638,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
-
-
-
   Widget _buildExpenseCard(Map<String, dynamic> data) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -527,12 +657,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           /// Top
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               Container(
                 height: 42,
                 width: 42,
@@ -553,7 +681,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     Text(
                       "Category",
                       style: TextStyle(
@@ -604,13 +731,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-
                   Text(
                     "Amount",
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                   ),
 
                   const SizedBox(height: 3),
@@ -635,11 +758,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
           Row(
             children: [
-
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   Text(
                     "Status",
                     style: TextStyle(
@@ -660,7 +781,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-
                   Text(
                     "Date",
                     style: TextStyle(
@@ -674,7 +794,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
                   Row(
                     children: [
-
                       Icon(
                         Icons.calendar_today_outlined,
                         size: 14,
@@ -685,8 +804,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
                       Text(
                         data['date'] != null
-                            ? DateFormat('dd MMM yyyy')
-                            .format(DateTime.parse(data['date']))
+                            ? DateFormat(
+                                'dd MMM yyyy',
+                              ).format(DateTime.parse(data['date']))
                             : "-",
                         style: TextStyle(
                           fontSize: 12,
@@ -704,7 +824,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       ),
     );
   }
-
 
   Widget _buildStatusBadge(String status) {
     late Color bgColor;
@@ -737,13 +856,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(
-          minWidth: 95,
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 7,
-        ),
+        constraints: const BoxConstraints(minWidth: 95),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(30),
@@ -752,11 +866,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 15,
-              color: textColor,
-            ),
+            Icon(icon, size: 15, color: textColor),
             const SizedBox(width: 6),
             Flexible(
               child: Text(

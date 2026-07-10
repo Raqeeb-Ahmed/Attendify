@@ -103,7 +103,7 @@ class _MonthlyProgressWidgetState extends State<MonthlyProgressWidget> {
       totalInsideMinutes += insideTime;
       totalOutsideMinutes += outsideTime;
       totalExtraMinutes += extraHours;
-      totalWorkMinutes += totalHours;
+      totalWorkMinutes += totalHours * 60;
 
       // Calculate late minutes (simplified - assumes 9:45 AM start time)
       if (status == 'LATE' && data['checkInTime'] != null) {

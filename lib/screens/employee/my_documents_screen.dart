@@ -107,24 +107,27 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: Colors.grey.shade200),
-                  ),
+                  border: Border(top: BorderSide(color: Colors.grey.shade200)),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text('Close'),
                     ),
-                    const SizedBox(width: 12),
                     ElevatedButton.icon(
                       onPressed: () => _downloadDocument(document),
                       icon: const Icon(Icons.download, size: 18),
@@ -132,7 +135,10 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF6366F1),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -187,42 +193,49 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
       ),
     );
 
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     try {
       final pdfService = PDFGeneratorService();
       await pdfService.generateAndDownloadPDF(document);
 
       // Close loading dialog
-      Navigator.pop(context);
+      if (mounted) {
+        navigator.pop();
 
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${_getDocumentTypeLabel(document['type'] ?? '')} downloaded successfully!',
+        // Show success message
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              '${_getDocumentTypeLabel(document['type'] ?? '')} downloaded successfully!',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'View',
+              textColor: Colors.white,
+              onPressed: () {
+                // Could implement file viewer here
+              },
+            ),
           ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-          action: SnackBarAction(
-            label: 'View',
-            textColor: Colors.white,
-            onPressed: () {
-              // Could implement file viewer here
-            },
-          ),
-        ),
-      );
+        );
+      }
     } catch (e) {
       // Close loading dialog
-      Navigator.pop(context);
+      if (mounted) {
+        navigator.pop();
 
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to download document: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ),
-      );
+        // Show error message
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Failed to download document: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -252,28 +265,36 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
-          tooltip: 'Menu',
+          // tooltip: 'Menu',
         ),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'My Document Vault',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1E293B),
-              ),
-            ),
-            Text(
-              'Access your official contracts, letters, and certificates',
-              style: TextStyle(
-                fontSize: 12,
-                color: Color(0xFF64748B),
-                fontWeight: FontWeight.normal,
-              ),
-            ),
-          ],
+        title: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 280;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'My Document Vault',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isNarrow ? 16 : 20,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                if (!isNarrow)
+                  const Text(
+                    'Access your official contracts, letters, and certificates',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -315,10 +336,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Your documents will appear here when issued',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                   ),
                 ],
               ),
@@ -371,7 +389,6 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-
                                     Text(
                                       "Uploaded",
                                       style: TextStyle(
@@ -456,7 +473,6 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
 
                         Row(
                           children: [
-
                             Expanded(
                               child: OutlinedButton.icon(
                                 onPressed: () => _showDocumentViewer(data),
@@ -490,7 +506,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                               ),
                             ),
                           ],
-                        )
+                        ),
                       ],
                     ),
                   ),

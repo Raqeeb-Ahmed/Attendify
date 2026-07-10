@@ -98,12 +98,19 @@ class NotificationsScreen extends StatelessWidget {
               ],
             ),
           ),
-          TextButton.icon(
-            onPressed: () => service.markAllRead(userId),
-            icon: const Icon(Icons.done_all_rounded, size: 16),
-            label: const Text('Mark all read', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFF6366F1)),
-          ),
+          MediaQuery.of(context).size.width < 450
+              ? IconButton(
+                  onPressed: () => service.markAllRead(userId),
+                  icon: const Icon(Icons.done_all_rounded, color: Color(0xFF6366F1)),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                )
+              : TextButton.icon(
+                  onPressed: () => service.markAllRead(userId),
+                  icon: const Icon(Icons.done_all_rounded, size: 16),
+                  label: const Text('Mark all read', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: TextButton.styleFrom(foregroundColor: const Color(0xFF6366F1)),
+                ),
         ],
       ),
     );

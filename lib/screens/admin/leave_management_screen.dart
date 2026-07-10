@@ -66,7 +66,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
 
   Widget _buildTopBar(bool isMobile, VoidCallback? onMenuPressed) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: 16),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 32, vertical: isMobile ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
@@ -77,8 +77,23 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
             IconButton(
               icon: const Icon(Icons.menu_rounded),
               onPressed: onMenuPressed,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
             ),
-          const Text('Leave Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+          if (isMobile && onMenuPressed != null) const SizedBox(width: 8),
+          const Icon(Icons.beach_access_rounded, color: Color(0xFF6366F1), size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Leave Management',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: isMobile ? 16 : 20,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1E293B),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -156,7 +171,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
             ],
           ),
           const SizedBox(height: 12), const Divider(), const SizedBox(height: 12),
-          Row(children: [_buildInfoItem(Icons.calendar_today, 'From', startDate), const SizedBox(width: 24), _buildInfoItem(Icons.calendar_today, 'To', endDate)]),
+          Wrap(spacing: 24, runSpacing: 8, children: [_buildInfoItem(Icons.calendar_today, 'From', startDate), _buildInfoItem(Icons.calendar_today, 'To', endDate)]),
           const SizedBox(height: 12),
           Text('Reason: $reason', style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
           if (status == 'pending') ...[

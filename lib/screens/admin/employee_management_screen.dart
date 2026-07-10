@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/push_notification_service.dart';
 
 class EmployeeManagementScreen extends StatefulWidget {
   final bool isMobile;
   final VoidCallback? onMenuPressed;
-  const EmployeeManagementScreen({super.key, this.isMobile = false, this.onMenuPressed});
+  const EmployeeManagementScreen({
+    super.key,
+    this.isMobile = false,
+    this.onMenuPressed,
+  });
 
   @override
-  State<EmployeeManagementScreen> createState() => _EmployeeManagementScreenState();
+  State<EmployeeManagementScreen> createState() =>
+      _EmployeeManagementScreenState();
 }
 
 class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
@@ -17,31 +23,63 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   bool _isSaving = false;
 
   final List<String> _departments = [
-    'All', 'Human Resources', 'Engineering', 'Design', 'Marketing',
-    'Sales', 'Finance', 'Operations', 'Management'
+    'All',
+    'Human Resources',
+    'Engineering',
+    'Design',
+    'Marketing',
+    'Sales',
+    'Finance',
+    'Operations',
+    'Management',
   ];
 
   final List<String> _designations = [
-    'Intern', 'Software Developer', 'Manager', 'HR Manager', 'Accountant',
-    'Sales Executive', 'Visa Officer', 'E-Visa Officer', 'Ticketing Officer',
-    'Visa Consultant', 'Director', 'CEO'
+    'Intern',
+    'Software Developer',
+    'Manager',
+    'HR Manager',
+    'Accountant',
+    'Sales Executive',
+    'Visa Officer',
+    'E-Visa Officer',
+    'Ticketing Officer',
+    'Visa Consultant',
+    'Director',
+    'CEO',
   ];
 
-  Future<void> _showEditDialog(BuildContext context, String docId, Map<String, dynamic> data) async {
+  Future<void> _showEditDialog(
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> data,
+  ) async {
     final nameCtrl = TextEditingController(text: data['name'] ?? '');
-    final deptNotifier = ValueNotifier<String>(data['department'] ?? _departments[1]);
-    final desgNotifier = ValueNotifier<String>(data['designation'] ?? _designations[0]);
-    final salaryCtrl = TextEditingController(text: (data['baseSalary'] ?? 0).toString());
-    final allowanceCtrl = TextEditingController(text: (data['allowances'] ?? 0).toString());
+    final deptNotifier = ValueNotifier<String>(
+      data['department'] ?? _departments[1],
+    );
+    final desgNotifier = ValueNotifier<String>(
+      data['designation'] ?? _designations[0],
+    );
+    final salaryCtrl = TextEditingController(
+      text: (data['baseSalary'] ?? 0).toString(),
+    );
+    final allowanceCtrl = TextEditingController(
+      text: (data['allowances'] ?? 0).toString(),
+    );
     final roleNotifier = ValueNotifier<String>(data['role'] ?? 'employee');
 
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit Employee', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+        title: const Text(
+          'Edit Employee',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+        ),
         contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-        content: SizedBox(
-          width: 400,
+        content: Container(
+          width: double.maxFinite,
+          constraints: const BoxConstraints(maxWidth: 400),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -52,7 +90,8 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                 ValueListenableBuilder<String>(
                   valueListenable: deptNotifier,
                   builder: (context, val, child) => _dialogDropdown(
-                    val, _departments.skip(1).toList(),
+                    val,
+                    _departments.skip(1).toList(),
                     (v) => deptNotifier.value = v!,
                   ),
                 ),
@@ -61,16 +100,19 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                 ValueListenableBuilder<String>(
                   valueListenable: desgNotifier,
                   builder: (context, val, child) => _dialogDropdown(
-                    val, _designations, (v) => desgNotifier.value = v!,
+                    val,
+                    _designations,
+                    (v) => desgNotifier.value = v!,
                   ),
                 ),
                 const SizedBox(height: 14),
                 _dialogLabel('Role'),
                 ValueListenableBuilder<String>(
                   valueListenable: roleNotifier,
-                  builder: (context, val, child) => _dialogDropdown(
-                    val, const ['employee', 'admin'], (v) => roleNotifier.value = v!,
-                  ),
+                  builder: (context, val, child) => _dialogDropdown(val, const [
+                    'employee',
+                    'admin',
+                  ], (v) => roleNotifier.value = v!),
                 ),
                 const SizedBox(height: 14),
                 _dialogField('Base Salary (PKR)', salaryCtrl, isNumber: true),
@@ -88,43 +130,58 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           ),
           StatefulBuilder(
             builder: (ctx2, setS) => ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366F1)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6366F1),
+              ),
               onPressed: _isSaving
                   ? null
                   : () async {
+                      setS(() => _isSaving = true);
 
-                setS(() => _isSaving = true);
+                      await FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(docId)
+                          .update({
+                            'name': nameCtrl.text.trim(),
+                            'department': deptNotifier.value,
+                            'designation': desgNotifier.value,
+                            'role': roleNotifier.value,
+                            'baseSalary': double.tryParse(salaryCtrl.text) ?? 0,
+                            'allowances':
+                                double.tryParse(allowanceCtrl.text) ?? 0,
+                          });
 
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(docId)
-                    .update({
-                  'name': nameCtrl.text.trim(),
-                  'department': deptNotifier.value,
-                  'designation': desgNotifier.value,
-                  'role': roleNotifier.value,
-                  'baseSalary': double.tryParse(salaryCtrl.text) ?? 0,
-                  'allowances': double.tryParse(allowanceCtrl.text) ?? 0,
-                });
+                      setS(() => _isSaving = false);
 
-                setS(() => _isSaving = false);
+                      if (ctx2.mounted) {
+                        Navigator.pop(ctx2);
+                      }
 
-                if (ctx2.mounted) {
-                  Navigator.pop(ctx2);
-                }
+                      if (!context.mounted) return;
 
-                if (!mounted) return;
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Employee updated"),
-                    backgroundColor: Color(0xFF22C55E),
-                  ),
-                );
-              },
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Employee updated"),
+                          backgroundColor: Color(0xFF22C55E),
+                        ),
+                      );
+                    },
               child: _isSaving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Save',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -146,10 +203,17 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             _buildFilters(isMobile),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('users').orderBy('name').snapshots(),
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .orderBy('name')
+                    .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)));
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF6366F1),
+                      ),
+                    );
                   }
                   final docs = snapshot.data?.docs ?? [];
                   final filtered = docs.where((doc) {
@@ -163,7 +227,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                   }).toList();
 
                   if (filtered.isEmpty) {
-                    return Center(child: Text('No employees found', style: TextStyle(color: Colors.grey.shade400)));
+                    return Center(
+                      child: Text(
+                        'No employees found',
+                        style: TextStyle(color: Colors.grey.shade400),
+                      ),
+                    );
                   }
 
                   return ListView.builder(
@@ -186,10 +255,19 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
   Widget _buildTopBar(bool isMobile, VoidCallback? onMenuPressed) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 16 : 32,
+        vertical: 16,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -204,10 +282,18 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Employee Management',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                Text('Manage staff records, roles, and profiles',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                Text(
+                  'Employee Management',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                Text(
+                  'Manage staff records, roles, and profiles',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                ),
               ],
             ),
           ),
@@ -249,11 +335,17 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         fillColor: const Color(0xFFF8FAFC),
         contentPadding: const EdgeInsets.symmetric(vertical: 10),
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade200)),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
         enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade200)),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
         focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF6366F1))),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF6366F1)),
+        ),
       ),
     );
   }
@@ -270,7 +362,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         child: DropdownButton<String>(
           value: _filterDept,
           items: _departments
-              .map((d) => DropdownMenuItem(value: d, child: Text(d, style: const TextStyle(fontSize: 13))))
+              .map(
+                (d) => DropdownMenuItem(
+                  value: d,
+                  child: Text(d, style: const TextStyle(fontSize: 13)),
+                ),
+              )
               .toList(),
           onChanged: (v) => setState(() => _filterDept = v!),
         ),
@@ -278,22 +375,38 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     );
   }
 
-  Widget _buildEmployeeCard(BuildContext ctx, String docId, Map<String, dynamic> d) {
+  Widget _buildEmployeeCard(
+    BuildContext ctx,
+    String docId,
+    Map<String, dynamic> d,
+  ) {
     final name = d['name'] as String? ?? 'Unknown';
     final email = d['email'] as String? ?? '';
     final dept = d['department'] as String? ?? 'N/A';
     final designation = d['designation'] as String? ?? 'N/A';
     final role = d['role'] as String? ?? 'employee';
     final salary = d['baseSalary'] ?? 0;
-    final initials = name.split(' ').take(2).map((p) => p.isNotEmpty ? p[0] : '').join().toUpperCase();
+    final initials = name
+        .split(' ')
+        .take(2)
+        .map((p) => p.isNotEmpty ? p[0] : '')
+        .join()
+        .toUpperCase();
     final perms = d['devicePermissions'] as Map<String, dynamic>?;
+    final approved = d['approved'] ?? true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -302,24 +415,61 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             CircleAvatar(
               radius: 22,
               backgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
-              child: Text(initials,
-                  style: const TextStyle(color: Color(0xFF6366F1), fontSize: 14, fontWeight: FontWeight.bold)),
+              child: Text(
+                initials,
+                style: const TextStyle(
+                  color: Color(0xFF6366F1),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
-                      Text(name,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
-                      const SizedBox(width: 8),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
                       _roleBadge(role),
+                      if (!approved)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFCD34D)),
+                          ),
+                          child: const Text(
+                            'PENDING APPROVAL',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFD97706),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(email, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  Text(
+                    email,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: 8,
@@ -327,17 +477,86 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                     children: [
                       _infoChip(Icons.business_center_rounded, dept),
                       _infoChip(Icons.work_outline_rounded, designation),
-                      _infoChip(Icons.attach_money_rounded, 'PKR ${salary.toString()}'),
+                      _infoChip(
+                        Icons.attach_money_rounded,
+                        'PKR ${salary.toString()}',
+                      ),
                     ],
                   ),
                   if (perms != null) ..._permChips(perms),
                 ],
               ),
             ),
+            if (!approved) ...[
+              IconButton(
+                onPressed: () async {
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(docId)
+                      .delete();
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text('$name registration rejected & deleted!'),
+                        backgroundColor: const Color(0xFFEF4444),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
+                 icon: const Icon(
+                  Icons.cancel_rounded,
+                  color: Color(0xFFEF4444),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                onPressed: () async {
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(docId)
+                      .update({'approved': true});
+
+                  // Send approval notification
+                  final userSnap = await FirebaseFirestore.instance.collection('users').doc(docId).get();
+                  if (userSnap.exists) {
+                    final userData = userSnap.data();
+                    final tokens = List<String>.from(userData?['fcmTokens'] ?? []);
+                    if (tokens.isNotEmpty) {
+                      await PushNotificationService.instance.sendPushNotification(
+                        recipientTokens: tokens,
+                        title: 'Account Approved',
+                        body: 'Congratulations! Your account has been approved by the Admin.',
+                      );
+                    }
+                  }
+
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text('$name approved successfully!'),
+                        backgroundColor: const Color(0xFF22C55E),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFF22C55E),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             IconButton(
               onPressed: () => _showEditDialog(ctx, docId, d),
-              icon: const Icon(Icons.edit_outlined, color: Color(0xFF6366F1), size: 20),
-              tooltip: 'Edit',
+              icon: const Icon(
+                Icons.edit_outlined,
+                color: Color(0xFF6366F1),
+                size: 20,
+              ),
             ),
           ],
         ),
@@ -354,11 +573,20 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
     String locLabel;
     switch (locPerm) {
-      case 'always': locLabel = 'Location: Always'; break;
-      case 'whileInUse': locLabel = 'Location: In use'; break;
-      case 'denied': locLabel = 'Location: Denied'; break;
-      case 'deniedForever': locLabel = 'Location: Blocked'; break;
-      default: locLabel = 'Location: Unknown';
+      case 'always':
+        locLabel = 'Location: Always';
+        break;
+      case 'whileInUse':
+        locLabel = 'Location: In use';
+        break;
+      case 'denied':
+        locLabel = 'Location: Denied';
+        break;
+      case 'deniedForever':
+        locLabel = 'Location: Blocked';
+        break;
+      default:
+        locLabel = 'Location: Unknown';
     }
 
     return [
@@ -403,22 +631,32 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     final Color bg = isWarning
         ? const Color(0xFFFFF7ED)
         : ok
-            ? const Color(0xFFF0FDF4)
-            : const Color(0xFFFEF2F2);
+        ? const Color(0xFFF0FDF4)
+        : const Color(0xFFFEF2F2);
     final Color fg = isWarning
         ? const Color(0xFFEA580C)
         : ok
-            ? const Color(0xFF16A34A)
-            : const Color(0xFFDC2626);
+        ? const Color(0xFF16A34A)
+        : const Color(0xFFDC2626);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 10, color: fg),
           const SizedBox(width: 3),
-          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: fg)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: fg,
+            ),
+          ),
         ],
       ),
     );
@@ -432,11 +670,14 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         color: isAdmin ? const Color(0xFFEEF2FF) : const Color(0xFFF0FDF4),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(role,
-          style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: isAdmin ? const Color(0xFF6366F1) : const Color(0xFF16A34A))),
+      child: Text(
+        role,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: isAdmin ? const Color(0xFF6366F1) : const Color(0xFF16A34A),
+        ),
+      ),
     );
   }
 
@@ -446,12 +687,19 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       children: [
         Icon(icon, size: 12, color: Colors.grey.shade400),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        ),
       ],
     );
   }
 
-  Widget _dialogField(String label, TextEditingController ctrl, {bool isNumber = false}) {
+  Widget _dialogField(
+    String label,
+    TextEditingController ctrl, {
+    bool isNumber = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -462,12 +710,19 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           keyboardType: isNumber ? TextInputType.number : TextInputType.text,
           style: const TextStyle(fontSize: 14),
           decoration: InputDecoration(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
             focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF6366F1))),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF6366F1)),
+            ),
           ),
         ),
       ],
@@ -475,24 +730,43 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   }
 
   Widget _dialogLabel(String text) {
-    return Text(text,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600));
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey.shade600,
+      ),
+    );
   }
 
-  Widget _dialogDropdown(String value, List<String> items, ValueChanged<String?> onChanged) {
+  Widget _dialogDropdown(
+    String value,
+    List<String> items,
+    ValueChanged<String?> onChanged,
+  ) {
     return DropdownButtonFormField<String>(
       initialValue: items.contains(value) ? value : items.first,
       items: items
-          .map((i) => DropdownMenuItem(value: i, child: Text(i, style: const TextStyle(fontSize: 13))))
+          .map(
+            (i) => DropdownMenuItem(
+              value: i,
+              child: Text(i, style: const TextStyle(fontSize: 13)),
+            ),
+          )
           .toList(),
       onChanged: onChanged,
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
         focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF6366F1))),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF6366F1)),
+        ),
       ),
     );
   }

@@ -16,51 +16,66 @@ class PDFGeneratorService {
   PDFGeneratorService._internal();
 
   /// Generate and download PDF for a document
-  Future<void> generateAndDownloadPDF(Map<String, dynamic> document) async {
-    try {
-      debugPrint('[PDFGenerator] Starting PDF generation for ${document['type']}');
+  // Future<void> generateAndDownloadPDF(Map<String, dynamic> document) async {
+  //   try {
+  //     debugPrint('[PDFGenerator] Starting PDF generation for ${document['type']}');
+  //
+  //     // Request storage permission
+  //     if (!await _requestStoragePermission()) {
+  //       throw Exception('Storage permission is required to download documents');
+  //     }
+  //
+  //     // Generate PDF
+  //     final pdf = await _createPDF(document);
+  //
+  //     // Save to device
+  //     final filePath = await _savePDFToDevice(pdf, document);
+  //
+  //     debugPrint('[PDFGenerator] PDF saved successfully to: $filePath');
+  //   } catch (e) {
+  //     debugPrint('[PDFGenerator] Error generating PDF: $e');
+  //     rethrow;
+  //   }
+  // }
+  //
 
-      // Request storage permission
-      if (!await _requestStoragePermission()) {
-        throw Exception('Storage permission is required to download documents');
-      }
 
-      // Generate PDF
-      final pdf = await _createPDF(document);
-      
-      // Save to device
-      final filePath = await _savePDFToDevice(pdf, document);
-      
-      debugPrint('[PDFGenerator] PDF saved successfully to: $filePath');
-    } catch (e) {
-      debugPrint('[PDFGenerator] Error generating PDF: $e');
-      rethrow;
-    }
+
+  Future<void> generateAndDownloadPDF(
+      Map<String, dynamic> document) async {
+
+    final pdf = await _createPDF(document);
+
+    final file = await _savePDFToDevice(pdf, document);
+
+    debugPrint(file);
   }
+
+
 
   /// Request storage permission for downloading files
-  Future<bool> _requestStoragePermission() async {
-    if (Platform.isAndroid) {
-      // For Android 13+ (API 33+), use media permissions
-      final storageStatus = await Permission.storage.request();
-      if (storageStatus.isGranted) {
-        return true;
-      }
-      
-      // For Android 11+ (API 30+), try manage external storage
-      final manageStatus = await Permission.manageExternalStorage.request();
-      if (manageStatus.isGranted) {
-        return true;
-      }
-      
-      // Fallback to storage permission
-      return storageStatus.isGranted;
-    } else if (Platform.isIOS) {
-      final status = await Permission.photos.request();
-      return status.isGranted;
-    }
-    return true; // Web doesn't need permission
-  }
+  // Future<bool> _requestStoragePermission() async {
+  //   if (Platform.isAndroid) {
+  //     // For Android 13+ (API 33+), use media permissions
+  //     final storageStatus = await Permission.storage.request();
+  //     if (storageStatus.isGranted) {
+  //       return true;
+  //     }
+  //
+  //     // For Android 11+ (API 30+), try manage external storage
+  //     final manageStatus = await Permission.manageExternalStorage.request();
+  //     if (manageStatus.isGranted) {
+  //       return true;
+  //     }
+  //
+  //     // Fallback to storage permission
+  //     return storageStatus.isGranted;
+  //   } else if (Platform.isIOS) {
+  //     final status = await Permission.photos.request();
+  //     return status.isGranted;
+  //   }
+  //   return true; // Web doesn't need permission
+  // }
 
   /// Create PDF document with professional formatting
   Future<pw.Document> _createPDF(Map<String, dynamic> document) async {
@@ -437,5 +452,194 @@ class PDFGeneratorService {
       return 'N/A';
     }
     return 'N/A';
+  }
+
+  /// Generate and save a professional PDF of an employee's attendance history
+  Future<String> generateAttendanceHistoryPDF({
+    required String employeeName,
+    required String employeeEmail,
+    required String department,
+    required String designation,
+    required List<Map<String, dynamic>> attendanceRecords,
+    required String reportMonthYear,
+  }) async {
+    final pdf = pw.Document();
+    final font = pw.Font.helvetica();
+    final boldFont = pw.Font.helveticaBold();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
+        build: (pw.Context context) {
+          return [
+            // Title Header
+            pw.Container(
+              padding: const pw.EdgeInsets.all(16),
+              decoration: const pw.BoxDecoration(
+                color: PdfColors.indigo,
+                borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'ATTENDANCE REPORT',
+                        style: pw.TextStyle(
+                          font: boldFont,
+                          fontSize: 20,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Attendify Attendance Management System',
+                        style: pw.TextStyle(
+                          font: font,
+                          fontSize: 12,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text(
+                        DateFormat('MMMM dd, yyyy').format(DateTime.now()),
+                        style: pw.TextStyle(
+                          font: font,
+                          fontSize: 12,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 20),
+
+            // Employee Info Block
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey300),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('Employee Details', style: pw.TextStyle(font: boldFont, fontSize: 14)),
+                  pw.SizedBox(height: 6),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Name: $employeeName', style: pw.TextStyle(font: font, fontSize: 11)),
+                      pw.Text('Email: $employeeEmail', style: pw.TextStyle(font: font, fontSize: 11)),
+                    ],
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Department: ${department.isNotEmpty ? department : "N/A"}', style: pw.TextStyle(font: font, fontSize: 11)),
+                      pw.Text('Designation: ${designation.isNotEmpty ? designation : "N/A"}', style: pw.TextStyle(font: font, fontSize: 11)),
+                    ],
+                  ),
+                  pw.SizedBox(height: 6),
+                  pw.Divider(height: 1, color: PdfColors.grey300),
+                  pw.SizedBox(height: 6),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Report Period:', style: pw.TextStyle(font: boldFont, fontSize: 11)),
+                      pw.Text(reportMonthYear, style: pw.TextStyle(font: boldFont, fontSize: 11, color: PdfColors.indigo)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 20),
+
+            // Table of records
+            pw.TableHelper.fromTextArray(
+              headers: ['Date', 'Check In', 'Check Out', 'Status', 'Office Bound'],
+              data: attendanceRecords.map((rec) {
+                return [
+                  rec['date'] ?? 'N/A',
+                  rec['checkIn'] ?? 'N/A',
+                  rec['checkOut'] ?? 'N/A',
+                  rec['status'] ?? 'N/A',
+                  rec['insideRadius'] == true ? 'Yes' : 'No',
+                ];
+              }).toList(),
+              border: pw.TableBorder.all(color: PdfColors.grey300),
+              headerStyle: pw.TextStyle(font: boldFont, fontSize: 11, color: PdfColors.white),
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo),
+              cellStyle: pw.TextStyle(font: font, fontSize: 10),
+              cellAlignments: {
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.center,
+                2: pw.Alignment.center,
+                3: pw.Alignment.center,
+                4: pw.Alignment.center,
+              },
+            ),
+            pw.SizedBox(height: 30),
+
+            // Footer
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(vertical: 8),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(top: pw.BorderSide(color: PdfColors.grey300)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Generated dynamically by Attendify System', style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey600)),
+                  pw.Text('Valid Official History Report', style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey600)),
+                ],
+              ),
+            ),
+          ];
+        },
+      ),
+    );
+
+    // Save to device
+    final bytes = await pdf.save();
+    Directory? directory;
+    if (Platform.isAndroid) {
+      final directories = [
+        Directory('/storage/emulated/0/Download'),
+        Directory('/storage/emulated/0/Documents'),
+        await getExternalStorageDirectory(),
+        await getApplicationDocumentsDirectory(),
+      ];
+      for (final dir in directories) {
+        if (dir != null && await dir.exists()) {
+          directory = dir;
+          break;
+        }
+      }
+      if (directory == null) {
+        directory = await getApplicationDocumentsDirectory();
+      }
+    } else {
+      directory = await getApplicationDocumentsDirectory();
+    }
+
+    final sanitizedName = employeeName.replaceAll(' ', '_');
+    final sanitizedMonthYear = reportMonthYear.replaceAll(' ', '_');
+    final fileName = 'Attendance_History_${sanitizedName}_$sanitizedMonthYear.pdf';
+    final file = File('${directory.path}/$fileName');
+
+    await file.writeAsBytes(bytes);
+    debugPrint('[PDFGenerator] Attendance History PDF saved to: ${file.path}');
+    return file.path;
   }
 }

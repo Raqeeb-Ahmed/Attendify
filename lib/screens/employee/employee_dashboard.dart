@@ -38,7 +38,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     with WidgetsBindingObserver {
   final AttendanceService _attendanceService = AttendanceService();
   final LocationService _locationService = LocationService();
-  final BackgroundCheckInService _backgroundService = BackgroundCheckInService();
+  final BackgroundCheckInService _backgroundService =
+      BackgroundCheckInService();
   final user = FirebaseAuth.instance.currentUser;
 
   int _selectedNavIndex = 0;
@@ -68,10 +69,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
     _checkAndSyncOfflineLocations();
   }
 
-Future<void> _initializeBackgroundServices() async {
-  await WorkManagerService.initialize();
-  ForegroundTrackingService.initialize();
-}
+  Future<void> _initializeBackgroundServices() async {
+    await WorkManagerService.initialize();
+    ForegroundTrackingService.initialize();
+  }
 
   Future<void> _checkAndSyncOfflineLocations() async {
     if (user == null) return;
@@ -83,11 +84,14 @@ Future<void> _initializeBackgroundServices() async {
         });
       }
       if (count > 0 && !_isSyncing) {
-        setState(() {
-          _isSyncing = true;
-        });
+        if (mounted) {
+          setState(() {
+            _isSyncing = true;
+          });
+        }
         await OfflineLocationService().syncCachedLocations(user!.uid);
-        final newCount = await OfflineLocationService().getCachedLocationsCount();
+        final newCount = await OfflineLocationService()
+            .getCachedLocationsCount();
         if (mounted) {
           setState(() {
             _offlineCount = newCount;
@@ -133,7 +137,8 @@ Future<void> _initializeBackgroundServices() async {
 
     try {
       // Step 1: Check and enforce Always + Precise location permission
-      final permissionStatus = await LocationPermissionService.checkPermissionStatus();
+      final permissionStatus =
+          await LocationPermissionService.checkPermissionStatus();
       debugPrint('[Dashboard] Initial permission status: $permissionStatus');
 
       if (!LocationPermissionService.isPermissionAcceptable(permissionStatus)) {
@@ -151,7 +156,9 @@ Future<void> _initializeBackgroundServices() async {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Location permission is required for auto check-in. Please enable "Always" location permission.'),
+                  content: Text(
+                    'Location permission is required for auto check-in. Please enable "Always" location permission.',
+                  ),
                   duration: Duration(seconds: 5),
                   backgroundColor: Colors.orange,
                 ),
@@ -172,8 +179,10 @@ Future<void> _initializeBackgroundServices() async {
         department: 'N/A', // You can get this from user profile if needed
       );
 
-      debugPrint('[Dashboard] Unified background check-in service started successfully');
-      
+      debugPrint(
+        '[Dashboard] Unified background check-in service started successfully',
+      );
+
       // Step 3: Additional setup
       await Future.delayed(const Duration(milliseconds: 800));
       if (mounted) await ForegroundTrackingService.requestBatteryExemption();
@@ -182,7 +191,8 @@ Future<void> _initializeBackgroundServices() async {
       // Step 4: Check for approximate location and prompt user if needed
       await Future.delayed(const Duration(seconds: 2));
       if (mounted) {
-        final needsPrecisePrompt = await DevicePermissionService.shouldPromptForPreciseLocation();
+        final needsPrecisePrompt =
+            await DevicePermissionService.shouldPromptForPreciseLocation();
         if (needsPrecisePrompt && mounted) {
           _showApproximateLocationDialog();
         }
@@ -197,6 +207,27 @@ Future<void> _initializeBackgroundServices() async {
   Future<void> _loadTodayData() async {
     if (user == null) return;
     final data = await _attendanceService.fetchTodayAttendance(user!.uid);
+    debugPrint("============= TODAY DATA =============");
+    debugPrint(data.toString());
+
+    debugPrint(
+      "Inside : ${data?['insideTime']}  ${data?['insideTime'].runtimeType}",
+    );
+
+    debugPrint(
+      "Outside : ${data?['outsideTime']}  ${data?['outsideTime'].runtimeType}",
+    );
+
+    debugPrint(
+      "Offline : ${data?['offlineTime']}  ${data?['offlineTime'].runtimeType}",
+    );
+
+    debugPrint(
+      "Extra : ${data?['extraHours']}  ${data?['extraHours'].runtimeType}",
+    );
+
+    debugPrint("====================================");
+
     if (mounted) setState(() => _todayData = data);
   }
 
@@ -205,7 +236,10 @@ Future<void> _initializeBackgroundServices() async {
       final pos = await _locationService.getCurrentLocation();
       if (mounted) {
         final dist = _haversine(
-          pos.latitude, pos.longitude, _officeLat, _officeLng,
+          pos.latitude,
+          pos.longitude,
+          _officeLat,
+          _officeLng,
         );
         setState(() {
           _currentLat = pos.latitude;
@@ -222,9 +256,12 @@ Future<void> _initializeBackgroundServices() async {
     const R = 6371e3;
     final dLat = (lat2 - lat1) * (3.141592653589793 / 180);
     final dLon = (lon2 - lon1) * (3.141592653589793 / 180);
-    final a = (dLat / 2) * (dLat / 2) +
-        (lat1 * 3.141592653589793 / 180).abs() * (lat2 * 3.141592653589793 / 180).abs() *
-        (dLon / 2) * (dLon / 2);
+    final a =
+        (dLat / 2) * (dLat / 2) +
+        (lat1 * 3.141592653589793 / 180).abs() *
+            (lat2 * 3.141592653589793 / 180).abs() *
+            (dLon / 2) *
+            (dLon / 2);
     return R * 2 * (a < 1 ? a : 1);
   }
 
@@ -285,8 +322,12 @@ Future<void> _initializeBackgroundServices() async {
 
   // Helper to format minutes into display string
   String formatMins(dynamic val) {
-    final m = (val is int) ? val : 0;
-    return '${m ~/ 60}h ${m % 60}m';
+    final minutes = (val as num?)?.round() ?? 0;
+
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+
+    return '${hours}h ${mins}m';
   }
 
   @override
@@ -320,9 +361,7 @@ Future<void> _initializeBackgroundServices() async {
                 onItemSelected: (i) => setState(() => _selectedNavIndex = i),
                 userName: user?.displayName ?? 'Employee',
               ),
-            Expanded(
-              child: _buildPageForIndex(dateStr, isMobile, isTablet),
-            ),
+            Expanded(child: _buildPageForIndex(dateStr, isMobile, isTablet)),
           ],
         ),
       ),
@@ -384,8 +423,11 @@ Future<void> _initializeBackgroundServices() async {
               child: Material(
                 color: Colors.transparent,
                 child: IconButton(
-                  icon: const Icon(Icons.menu_rounded, color: Color(0xFF475569)),
-                  tooltip: 'Menu',
+                  icon: const Icon(
+                    Icons.menu_rounded,
+                    color: Color(0xFF475569),
+                  ),
+                  // tooltip: 'Menu',
                   onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                 ),
               ),
@@ -429,10 +471,7 @@ Future<void> _initializeBackgroundServices() async {
         const SizedBox(height: 16),
         _buildTrackingStatus(),
         const SizedBox(height: 16),
-        MonthlyProgressWidget(
-          userId: user!.uid,
-          selectedMonth: DateTime.now(),
-        ),
+        MonthlyProgressWidget(userId: user!.uid, selectedMonth: DateTime.now()),
         const SizedBox(height: 16),
         _buildAttendanceLog(),
       ],
@@ -440,15 +479,24 @@ Future<void> _initializeBackgroundServices() async {
   }
 
   Widget _buildTopBar(String dateStr, bool isMobile) {
-    final bool isCheckedIn = _todayData != null && _todayData!['checkInTime'] != null;
-    final bool isCheckedOut = _todayData != null && _todayData!['checkOutTime'] != null;
+    final bool isCheckedIn =
+        _todayData != null && _todayData!['checkInTime'] != null;
+    final bool isCheckedOut =
+        _todayData != null && _todayData!['checkOutTime'] != null;
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 16 : 32,
+        vertical: 16,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Row(
@@ -462,10 +510,24 @@ Future<void> _initializeBackgroundServices() async {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Attendance Dashboard',
-                    style: TextStyle(fontSize: isMobile ? 18 : 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B))),
+                Text(
+                  'Attendance Dashboard',
+                  style: TextStyle(
+                    fontSize: isMobile ? 18 : 22,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 2),
-                Text(dateStr, style: TextStyle(fontSize: isMobile ? 11 : 13, color: const Color(0xFF94A3B8))),
+                Text(
+                  dateStr,
+                  style: TextStyle(
+                    fontSize: isMobile ? 11 : 13,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                ),
                 if (isMobile) ...[
                   const SizedBox(height: 8),
                   _buildStatusBadge(isCheckedIn, isCheckedOut),
@@ -487,10 +549,15 @@ Future<void> _initializeBackgroundServices() async {
                     IconButton(
                       onPressed: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
+                        ),
                       ),
-                      icon: const Icon(Icons.notifications_outlined, color: Color(0xFF475569)),
-                      tooltip: 'Notifications',
+                      icon: const Icon(
+                        Icons.notifications_outlined,
+                        color: Color(0xFF475569),
+                      ),
+                      // tooltip: 'Notifications',
                     ),
                     if (count > 0)
                       Positioned(
@@ -498,9 +565,18 @@ Future<void> _initializeBackgroundServices() async {
                         top: 6,
                         child: Container(
                           padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                          child: Text('$count',
-                              style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEF4444),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                   ],
@@ -530,7 +606,14 @@ Future<void> _initializeBackgroundServices() async {
           children: [
             const Icon(Icons.cloud_off, size: 14, color: Color(0xFFEF4444)),
             const SizedBox(width: 4),
-            Text('$_offlineCount Unsynced', style: const TextStyle(color: Color(0xFFEF4444), fontSize: 11, fontWeight: FontWeight.bold)),
+            Text(
+              '$_offlineCount Unsynced',
+              style: const TextStyle(
+                color: Color(0xFFEF4444),
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       );
@@ -548,10 +631,20 @@ Future<void> _initializeBackgroundServices() async {
             SizedBox(
               width: 10,
               height: 10,
-              child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF6366F1)),
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: Color(0xFF6366F1),
+              ),
             ),
             SizedBox(width: 6),
-            Text('Syncing...', style: TextStyle(color: Color(0xFF6366F1), fontSize: 11, fontWeight: FontWeight.bold)),
+            Text(
+              'Syncing...',
+              style: TextStyle(
+                color: Color(0xFF6366F1),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       );
@@ -568,7 +661,14 @@ Future<void> _initializeBackgroundServices() async {
           children: [
             Icon(Icons.cloud_done, size: 14, color: Color(0xFF22C55E)),
             SizedBox(width: 4),
-            Text('Synced', style: TextStyle(color: Color(0xFF22C55E), fontSize: 11, fontWeight: FontWeight.bold)),
+            Text(
+              'Synced',
+              style: TextStyle(
+                color: Color(0xFF22C55E),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       );
@@ -578,52 +678,76 @@ Future<void> _initializeBackgroundServices() async {
   Widget _buildStatusBadge(bool isCheckedIn, bool isCheckedOut) {
     if (!isCheckedIn) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: const Color(0xFFFFF7ED),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFFDBA74), width: 1.5),
         ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
+        child: const Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 6,
+          runSpacing: 4,
           children: [
             Icon(Icons.wifi_rounded, size: 16, color: Color(0xFFEA580C)),
-            SizedBox(width: 6),
-            Text('Auto check-in on WiFi', style: TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(
+              'Auto check-in on WiFi',
+              style: TextStyle(
+                color: Color(0xFFEA580C),
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
           ],
         ),
       );
     } else if (!isCheckedOut) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: const Color(0xFFF0FDF4),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
         ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
+        child: const Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 6,
+          runSpacing: 4,
           children: [
             Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF16A34A)),
-            SizedBox(width: 6),
-            Text('Auto checkout 6 PM', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(
+              'Auto checkout 6 PM',
+              style: TextStyle(
+                color: Color(0xFF16A34A),
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
           ],
         ),
       );
     } else {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: const Color(0xFFF0FDF4),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
         ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
+        child: const Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 6,
+          runSpacing: 4,
           children: [
             Icon(Icons.check_circle, size: 16, color: Color(0xFF16A34A)),
-            SizedBox(width: 6),
-            Text('Completed', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(
+              'Completed',
+              style: TextStyle(
+                color: Color(0xFF16A34A),
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
           ],
         ),
       );
@@ -634,28 +758,73 @@ Future<void> _initializeBackgroundServices() async {
     final checkInTime = _todayData?['checkInTime'] as String?;
     final checkOutTime = _todayData?['checkOutTime'] as String?;
     final status = _todayData?['status'] ?? 'pending';
-    final checkInStr = checkInTime != null ? _formatIsoTime(checkInTime) : '--:--';
-    final checkOutStr = checkOutTime != null ? _formatIsoTime(checkOutTime) : '--:--';
+    final checkInStr = checkInTime != null
+        ? _formatIsoTime(checkInTime)
+        : '--:--';
+    final checkOutStr = checkOutTime != null
+        ? _formatIsoTime(checkOutTime)
+        : '--:--';
 
+    debugPrint(
+      "Inside : ${_todayData?['insideTime']} "
+      "${_todayData?['insideTime'].runtimeType}",
+    );
+
+    debugPrint(
+      "Outside : ${_todayData?['outsideTime']} "
+      "${_todayData?['outsideTime'].runtimeType}",
+    );
+
+    debugPrint(
+      "Offline : ${_todayData?['offlineTime']} "
+      "${_todayData?['offlineTime'].runtimeType}",
+    );
+
+    debugPrint(
+      "Extra : ${_todayData?['extraHours']} "
+      "${_todayData?['extraHours'].runtimeType}",
+    );
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Today's Summary", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+          const Text(
+            "Today's Summary",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E293B),
+            ),
+          ),
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(child: _summaryBlock('CHECK IN', checkInStr, const Color(0xFF6366F1))),
+              Expanded(
+                child: _summaryBlock(
+                  'CHECK IN',
+                  checkInStr,
+                  const Color(0xFF6366F1),
+                ),
+              ),
               const SizedBox(width: 24),
-              Expanded(child: _summaryBlock('CHECK OUT', checkOutStr, const Color(0xFF64748B))),
+              Expanded(
+                child: _summaryBlock(
+                  'CHECK OUT',
+                  checkOutStr,
+                  const Color(0xFF64748B),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
           Row(
             children: [
-              const Text('Status', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+              const Text(
+                'Status',
+                style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+              ),
               const Spacer(),
               _statusBadge(status),
             ],
@@ -664,12 +833,36 @@ Future<void> _initializeBackgroundServices() async {
             padding: EdgeInsets.symmetric(vertical: 16),
             child: Divider(height: 1, color: Color(0xFFE2E8F0)),
           ),
-          const Text('TIME ALLOCATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8), letterSpacing: 1)),
+          const Text(
+            'TIME ALLOCATION',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF94A3B8),
+              letterSpacing: 1,
+            ),
+          ),
           const SizedBox(height: 12),
-          _timeRow('Inside Office', formatMins(_todayData?['insideTime'] ?? 0), const Color(0xFF22C55E)),
-          _timeRow('Outside', formatMins(_todayData?['outsideTime'] ?? 0), const Color(0xFFF97316)),
-          _timeRow('Offline/Idle', formatMins(_todayData?['offlineTime'] ?? 0), const Color(0xFF94A3B8)),
-          _timeRow('Extra Hours', formatMins(_todayData?['extraHours'] ?? 0), const Color(0xFF6366F1)),
+          _timeRow(
+            'Inside Office',
+            formatMins(_todayData?['insideTime'] ?? 0),
+            const Color(0xFF22C55E),
+          ),
+          _timeRow(
+            'Outside',
+            formatMins(_todayData?['outsideTime'] ?? 0),
+            const Color(0xFFF97316),
+          ),
+          _timeRow(
+            'Offline/Idle',
+            formatMins(_todayData?['offlineTime'] ?? 0),
+            const Color(0xFF94A3B8),
+          ),
+          _timeRow(
+            'Extra Hours',
+            formatMins(_todayData?['extraHours'] ?? 0),
+            const Color(0xFF6366F1),
+          ),
         ],
       ),
     );
@@ -693,8 +886,14 @@ Future<void> _initializeBackgroundServices() async {
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
-      child: Text(status.toUpperCase(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
+      ),
     );
   }
 
@@ -718,9 +917,27 @@ Future<void> _initializeBackgroundServices() async {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color, letterSpacing: 0.5)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+              letterSpacing: 0.5,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -731,18 +948,43 @@ Future<void> _initializeBackgroundServices() async {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF475569), fontWeight: FontWeight.w500))),
-          Text(display, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF475569),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            display,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildTrackingStatus() {
-    final isCheckedIn = _todayData != null && _todayData!['checkInTime'] != null;
-    final isCheckedOut = _todayData != null && _todayData!['checkOutTime'] != null;
+    final isCheckedIn =
+        _todayData != null && _todayData!['checkInTime'] != null;
+    final isCheckedOut =
+        _todayData != null && _todayData!['checkOutTime'] != null;
     final isActive = isCheckedIn && !isCheckedOut;
 
     final dist = _distanceFromOffice;
@@ -753,7 +995,8 @@ Future<void> _initializeBackgroundServices() async {
     String subLabel;
     Color cardBg;
 
-    final isAutoCheckedOut = _todayData != null && _todayData!['sessionStatus'] == 'auto-checkout';
+    final isAutoCheckedOut =
+        _todayData != null && _todayData!['sessionStatus'] == 'auto-checkout';
 
     if (isAutoCheckedOut) {
       dotColor = const Color(0xFF8B5CF6);
@@ -783,7 +1026,13 @@ Future<void> _initializeBackgroundServices() async {
         color: cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: dotColor.withValues(alpha: 0.2)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -794,8 +1043,15 @@ Future<void> _initializeBackgroundServices() async {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              isAutoCheckedOut ? Icons.check_circle_rounded : isActive ? (isAtOffice ? Icons.domain_verification_rounded : Icons.directions_walk_rounded) : Icons.wifi_rounded,
-              color: dotColor, size: 24,
+              isAutoCheckedOut
+                  ? Icons.check_circle_rounded
+                  : isActive
+                  ? (isAtOffice
+                        ? Icons.domain_verification_rounded
+                        : Icons.directions_walk_rounded)
+                  : Icons.wifi_rounded,
+              color: dotColor,
+              size: 24,
             ),
           ),
           const SizedBox(width: 16),
@@ -805,22 +1061,53 @@ Future<void> _initializeBackgroundServices() async {
               children: [
                 Row(
                   children: [
-                    Container(width: 8, height: 8, decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: dotColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    Text(statusLabel, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: dotColor)),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: dotColor,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(subLabel, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
-                if (isActive) ...
-                  [const SizedBox(height: 6),
+                Text(
+                  subLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                if (isActive) ...[
+                  const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(Icons.shield_rounded, size: 13, color: Colors.grey.shade500),
+                      Icon(
+                        Icons.shield_rounded,
+                        size: 13,
+                        color: Colors.grey.shade500,
+                      ),
                       const SizedBox(width: 4),
-                      Text('Session running in background', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      Text(
+                        'Session running in background',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                     ],
-                  )],
+                  ),
+                ],
                 if (_offlineCount > 0) ...[
                   const SizedBox(height: 6),
                   Row(
@@ -828,7 +1115,9 @@ Future<void> _initializeBackgroundServices() async {
                       Icon(
                         _isSyncing ? Icons.sync : Icons.cloud_off,
                         size: 13,
-                        color: _isSyncing ? const Color(0xFF6366F1) : const Color(0xFFEF4444),
+                        color: _isSyncing
+                            ? const Color(0xFF6366F1)
+                            : const Color(0xFFEF4444),
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -838,7 +1127,9 @@ Future<void> _initializeBackgroundServices() async {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: _isSyncing ? const Color(0xFF6366F1) : const Color(0xFFEF4444),
+                          color: _isSyncing
+                              ? const Color(0xFF6366F1)
+                              : const Color(0xFFEF4444),
                         ),
                       ),
                     ],
@@ -850,10 +1141,19 @@ Future<void> _initializeBackgroundServices() async {
                       SizedBox(
                         width: 10,
                         height: 10,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6366F1)),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF6366F1),
+                        ),
                       ),
                       SizedBox(width: 4),
-                      Text('Syncing offline locations...', style: TextStyle(fontSize: 11, color: Color(0xFF6366F1))),
+                      Text(
+                        'Syncing offline locations...',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF6366F1),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -862,8 +1162,12 @@ Future<void> _initializeBackgroundServices() async {
           ),
           if (_currentLat != null)
             IconButton(
-              icon: const Icon(Icons.refresh_rounded, size: 20, color: Color(0xFF6366F1)),
-              tooltip: 'Refresh location',
+              icon: const Icon(
+                Icons.refresh_rounded,
+                size: 20,
+                color: Color(0xFF6366F1),
+              ),
+              // tooltip: 'Refresh location',
               onPressed: _loadCurrentLocation,
             ),
         ],
@@ -881,18 +1185,43 @@ Future<void> _initializeBackgroundServices() async {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.access_time, color: Color(0xFF6366F1), size: 20),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEF2FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.access_time,
+                      color: Color(0xFF6366F1),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Attendance Log',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              const Text('Attendance Log', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B))),
-              const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                   borderRadius: BorderRadius.circular(10),
@@ -901,10 +1230,20 @@ Future<void> _initializeBackgroundServices() async {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(DateFormat('MMMM yyyy').format(DateTime.now()),
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                    Text(
+                      DateFormat('MMMM yyyy').format(DateTime.now()),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    const Icon(Icons.calendar_today, size: 16, color: Color(0xFF94A3B8)),
+                    const Icon(
+                      Icons.calendar_today,
+                      size: 16,
+                      color: Color(0xFF94A3B8),
+                    ),
                   ],
                 ),
               ),
@@ -917,7 +1256,12 @@ Future<void> _initializeBackgroundServices() async {
             stream: _attendanceService.getAttendanceHistory(user!.uid),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator(color: Color(0xFF6366F1))));
+                return const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(
+                    child: CircularProgressIndicator(color: Color(0xFF6366F1)),
+                  ),
+                );
               }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Padding(
@@ -925,9 +1269,19 @@ Future<void> _initializeBackgroundServices() async {
                   child: Center(
                     child: Column(
                       children: [
-                        Icon(Icons.event_note, size: 48, color: Colors.grey.shade300),
+                        Icon(
+                          Icons.event_note,
+                          size: 48,
+                          color: Colors.grey.shade300,
+                        ),
                         const SizedBox(height: 12),
-                        Text('No records yet', style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
+                        Text(
+                          'No records yet',
+                          style: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 14,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -947,7 +1301,12 @@ Future<void> _initializeBackgroundServices() async {
   }
 
   Widget _logHeaderRow() {
-    const style = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8), letterSpacing: 0.5);
+    const style = TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+      color: Color(0xFF94A3B8),
+      letterSpacing: 0.5,
+    );
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 10),
       child: Row(
@@ -976,16 +1335,39 @@ Future<void> _initializeBackgroundServices() async {
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9)))),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+      ),
       child: Row(
         children: [
           Expanded(flex: 2, child: Text(dateStr, style: cellStyle)),
           Expanded(flex: 2, child: Text(inStr, style: cellStyle)),
           Expanded(flex: 2, child: Text(outStr, style: cellStyle)),
-          Expanded(flex: 2, child: Text(formatMins(d['insideTime']), style: cellStyle.copyWith(color: const Color(0xFF22C55E)))),
-          Expanded(flex: 2, child: Text(formatMins(d['outsideTime']), style: cellStyle.copyWith(color: const Color(0xFFF97316)))),
-          Expanded(flex: 2, child: Text(formatMins(d['offlineTime']), style: cellStyle)),
-          Expanded(flex: 2, child: Text(formatMins(d['extraHours']), style: cellStyle.copyWith(color: const Color(0xFFEF4444)))),
+          Expanded(
+            flex: 2,
+            child: Text(
+              formatMins(d['insideTime']),
+              style: cellStyle.copyWith(color: const Color(0xFF22C55E)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              formatMins(d['outsideTime']),
+              style: cellStyle.copyWith(color: const Color(0xFFF97316)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(formatMins(d['offlineTime']), style: cellStyle),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              formatMins(d['extraHours']),
+              style: cellStyle.copyWith(color: const Color(0xFFEF4444)),
+            ),
+          ),
           Expanded(flex: 1, child: _statusBadge(status)),
         ],
       ),
@@ -1014,12 +1396,21 @@ Future<void> _initializeBackgroundServices() async {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(dateStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
+              Text(
+                dateStr,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
               _statusBadge(status),
             ],
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
             children: [
               _mobileLogItem('In', inStr),
               _mobileLogItem('Out', outStr),
@@ -1035,14 +1426,23 @@ Future<void> _initializeBackgroundServices() async {
   }
 
   Widget _mobileLogItem(String label, String value) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-          Text(value, style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            color: Color(0xFF94A3B8),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+        ),
+      ],
     );
   }
 
@@ -1051,8 +1451,16 @@ Future<void> _initializeBackgroundServices() async {
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 2)),
-        BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 1)),
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.04),
+          blurRadius: 12,
+          offset: const Offset(0, 2),
+        ),
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.02),
+          blurRadius: 4,
+          offset: const Offset(0, 1),
+        ),
       ],
     );
   }

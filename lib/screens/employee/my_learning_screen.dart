@@ -10,10 +10,7 @@ class MyLearningScreen extends StatelessWidget {
       await FirebaseFirestore.instance
           .collection('user_trainings')
           .doc(docId)
-          .update({
-        'status': 'in_progress',
-        'progress': 10,
-      });
+          .update({'status': 'in_progress', 'progress': 10});
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -26,10 +23,7 @@ class MyLearningScreen extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -41,10 +35,10 @@ class MyLearningScreen extends StatelessWidget {
           .collection('user_trainings')
           .doc(docId)
           .update({
-        'status': 'completed',
-        'progress': 100,
-        'completedAt': FieldValue.serverTimestamp(),
-      });
+            'status': 'completed',
+            'progress': 100,
+            'completedAt': FieldValue.serverTimestamp(),
+          });
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -57,10 +51,7 @@ class MyLearningScreen extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -78,45 +69,56 @@ class MyLearningScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
-          tooltip: 'Menu',
+          // tooltip: 'Menu',
         ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6366F1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.school_rounded,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        title: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 280;
+            return Row(
               children: [
-                Text(
-                  'My Learning',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.school_rounded,
+                    color: Colors.white,
+                    size: 20,
                   ),
                 ),
-                Text(
-                  'Grow your skills with corporate training',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.normal,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'My Learning',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: isNarrow ? 16 : 20,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      if (!isNarrow)
+                        const Text(
+                          'Grow your skills with corporate training',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.normal,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -157,23 +159,23 @@ class MyLearningScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     'Check back later for new courses',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                   ),
                 ],
               ),
             );
           }
 
+          final bool isMobile = MediaQuery.of(context).size.width < 600;
           return GridView.builder(
             padding: const EdgeInsets.all(20),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: isMobile ? 1 : 2,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              childAspectRatio: 0.85,
+              childAspectRatio: isMobile
+                  ? (MediaQuery.of(context).size.width < 360 ? 1.35 : 1.5)
+                  : 0.85,
             ),
             itemCount: courses.length,
             itemBuilder: (context, index) {

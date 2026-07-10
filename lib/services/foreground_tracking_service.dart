@@ -4,6 +4,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
 import '../utils/app_config.dart';
 import 'offline_location_service.dart';
@@ -20,6 +21,8 @@ void startForegroundTaskCallback() {
 
 class _LocationTaskHandler extends TaskHandler {
   static const int _radiusMeters = 100;
+  double? _lastLoggedLat;
+  double? _lastLoggedLng;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -117,20 +120,43 @@ class _LocationTaskHandler extends TaskHandler {
       // Online: Sync any cached offline locations first
       await OfflineLocationService().syncCachedLocations(uid);
 
-      // Heartbeat
-      await db.collection('heartbeats').doc(uid).set({
+      final rtdb = FirebaseDatabase.instance;
+
+      // Heartbeat written to Realtime Database to save requests
+      await rtdb.ref('presence/$uid').set({
         'userId': uid,
         'userName': name,
         'email': email,
         'lastSeen': nowIso,
         'online': true,
-      }, SetOptions(merge: true));
+      });
 
-      // Overwrite latest doc (admin live view reads this)
-      await db.collection('locations').doc('${uid}_latest').set(locationData);
+      // Overwrite latest coordinates in Realtime Database to save requests
+      await rtdb.ref('locations/${uid}_latest').set(locationData);
 
-      // Append to history (admin timeline reads this)
-      await db.collection('locations').add(locationData);
+      // Distance filter to save Firestore writes: only log if user moves > 15 meters
+      bool shouldLogCoords = true;
+      if (_lastLoggedLat != null && _lastLoggedLng != null) {
+        final moveDistance = _haversine(
+          position.latitude,
+          position.longitude,
+          _lastLoggedLat!,
+          _lastLoggedLng!,
+        );
+        if (moveDistance < 15) {
+          shouldLogCoords = false;
+        }
+      }
+
+      if (shouldLogCoords) {
+        // Append to history in Firestore
+        await db.collection('locations').add(locationData);
+        _lastLoggedLat = position.latitude;
+        _lastLoggedLng = position.longitude;
+        debugPrint('[ForegroundTask] Logged movement coordinate to Firestore history');
+      } else {
+        debugPrint('[ForegroundTask] Skipped logging stationary coordinate to save Firestore writes');
+      }
 
       // ── Auto-checkout at 6:00 PM (18:00) ─────────────────────────────────
       final autoCheckoutTime = DateTime(now.year, now.month, now.day, 18, 0);

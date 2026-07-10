@@ -194,7 +194,7 @@ class BackgroundLocationService {
       await _db.collection('locations').doc('${_currentUid}_latest').set(locationData);
 
       // Update time tracking on attendance (if checked in)
-      await _attendanceService.updateTimeTracking(_currentUid!, now, isInsideRadius, nowIso);
+      /// await _attendanceService.updateTimeTracking(_currentUid!, now, isInsideRadius, nowIso);
 
       debugPrint(
         '[BackgroundLocationService] Updated: $locationStatus (${distance.toStringAsFixed(0)}m)${isInsideRadius && !_autoCheckedIn ? ' - Auto check-in ready (waiting for WiFi)' : ''}',
@@ -220,8 +220,8 @@ class BackgroundLocationService {
 
       if (result != null) {
         _autoCheckedIn = true;
-        _attendanceService.startHeartbeat(_currentUid!);
-        _attendanceService.startLocationTracking(_currentUid!);
+        // _attendanceService.startHeartbeat(_currentUid!);
+        // _attendanceService.startLocationTracking(_currentUid!);
         debugPrint('[BackgroundLocationService] Auto check-in successful!');
       }
     } catch (e) {

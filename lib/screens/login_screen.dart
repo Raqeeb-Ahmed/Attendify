@@ -56,9 +56,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
             final List<String> adminTokens = [];
             for (var doc in adminsQuery.docs) {
+              final adminId = doc.id;
               final data = doc.data();
               final tokens = List<String>.from(data['fcmTokens'] ?? []);
               adminTokens.addAll(tokens);
+
+              // Add database notification document for each admin
+              await FirebaseFirestore.instance.collection('notifications').add({
+                'userId': adminId,
+                'title': 'New User Registration',
+                'body': '$userName has registered and is pending approval.',
+                'type': 'registration',
+                'data': {'registeredUserId': userCred.user!.uid},
+                'read': false,
+                'createdAt': DateTime.now().toIso8601String(),
+              });
             }
 
             if (adminTokens.isNotEmpty) {
@@ -85,9 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (role == 'admin' || role == 'manager') {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (_) => const AdminDashboard(),
-              ),
+              MaterialPageRoute(builder: (_) => const AdminDashboard()),
             );
           } else {
             if (approved) {

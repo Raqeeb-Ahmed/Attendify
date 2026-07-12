@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:workmanager/workmanager.dart';
@@ -392,6 +393,11 @@ class WorkManagerService {
     required String email,
     String? department,
   }) async {
+    if (Platform.isIOS) {
+      // iOS periodic tasks are not supported via Workmanager. Background location is handled via Geolocator background settings.
+      return;
+    }
+
     if (!_initialized) {
       debugPrint('[WorkManagerService] ⚠️ Not initialized, call initialize() first');
       return;

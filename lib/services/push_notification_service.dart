@@ -52,8 +52,17 @@ class PushNotificationService {
     // 2. Initialize local notifications for foreground alerts
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
+    const DarwinInitializationSettings initializationSettingsDarwin =
+        DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
     const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
+        InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsDarwin,
+    );
 
     await _localNotifications.initialize(
       initializationSettings,
@@ -86,7 +95,7 @@ class PushNotificationService {
       RemoteNotification? notification = message.notification;
       AndroidNotification? android = message.notification?.android;
 
-      if (notification != null && android != null) {
+      if (notification != null) {
         _localNotifications.show(
           notification.hashCode,
           notification.title,
@@ -96,10 +105,15 @@ class PushNotificationService {
               channel.id,
               channel.name,
               channelDescription: channel.description,
-              icon: android.smallIcon ?? '@mipmap/ic_launcher',
+              icon: android?.smallIcon ?? '@mipmap/ic_launcher',
               importance: Importance.max,
               priority: Priority.high,
               playSound: true,
+            ),
+            iOS: const DarwinNotificationDetails(
+              presentAlert: true,
+              presentBadge: true,
+              presentSound: true,
             ),
           ),
           payload: message.data.toString(),
@@ -251,6 +265,15 @@ class PushNotificationService {
                   'notification': {
                     'channel_id': 'high_importance_channel',
                     'sound': 'default',
+                  },
+                },
+                'apns': {
+                  'payload': {
+                    'aps': {
+                      'sound': 'default',
+                      'badge': 1,
+                      'content-available': 1,
+                    },
                   },
                 },
               },

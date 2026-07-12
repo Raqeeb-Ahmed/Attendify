@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../utils/firebase_exception_handler.dart';
+import '../../services/push_notification_service.dart';
 
 class LeaveManagementScreen extends StatefulWidget {
   final bool isMobile;
@@ -198,8 +199,69 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
 
   Future<void> _updateStatus(String docId, String status) async {
     try {
-      await FirebaseFirestore.instance.collection('leaves').doc(docId).update({'status': status, 'updatedAt': DateTime.now().toIso8601String()});
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Leave $status'), backgroundColor: status == 'approved' ? const Color(0xFF22C55E) : const Color(0xFFEF4444), behavior: SnackBarBehavior.floating));
-    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(getFirebaseErrorMessage(e)), backgroundColor: const Color(0xFFEF4444))); }
+      await FirebaseFirestore.instance.collection('leaves').doc(docId).update({
+        'status': status,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+
+      // Send push notification and save notification in database
+      final leaveSnap = await FirebaseFirestore.instance
+          .collection('leaves')
+          .doc(docId)
+          .get();
+      if (leaveSnap.exists) {
+        final leaveData = leaveSnap.data();
+        final userId = leaveData?['userId'] as String?;
+        if (userId != null) {
+          final userSnap = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .get();
+          if (userSnap.exists) {
+            final userData = userSnap.data();
+            final tokens = List<String>.from(userData?['fcmTokens'] ?? []);
+            if (tokens.isNotEmpty) {
+              await PushNotificationService.instance.sendPushNotification(
+                recipientTokens: tokens,
+                title: 'Leave Request Update',
+                body: 'Your leave request has been $status.',
+              );
+            }
+          }
+
+          // Save in notifications collection in database
+          await FirebaseFirestore.instance.collection('notifications').add({
+            'userId': userId,
+            'title': 'Leave Request Update',
+            'body': 'Your leave request has been $status.',
+            'type': 'leave',
+            'data': {'leaveId': docId},
+            'read': false,
+            'createdAt': DateTime.now().toIso8601String(),
+          });
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Leave $status'),
+            backgroundColor: status == 'approved'
+                ? const Color(0xFF22C55E)
+                : const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(getFirebaseErrorMessage(e)),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
   }
 }

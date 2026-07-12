@@ -1958,6 +1958,17 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
               );
             }
           }
+
+          // Save in notifications collection in database
+          await FirebaseFirestore.instance.collection('notifications').add({
+            'userId': userId,
+            'title': 'Leave Request Update',
+            'body': 'Your leave request has been $status.',
+            'type': 'leave',
+            'data': {'leaveId': docId},
+            'read': false,
+            'createdAt': DateTime.now().toIso8601String(),
+          });
         }
       }
 
@@ -2006,6 +2017,17 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                 'Congratulations! Your account has been approved by the Admin.',
           );
         }
+
+        // Save in notifications collection in database
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'userId': docId,
+          'title': 'Account Approved',
+          'body': 'Congratulations! Your account has been approved by the Admin.',
+          'type': 'approval',
+          'data': {},
+          'read': false,
+          'createdAt': DateTime.now().toIso8601String(),
+        });
       }
 
       if (mounted) {

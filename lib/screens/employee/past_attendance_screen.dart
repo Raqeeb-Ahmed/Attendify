@@ -17,6 +17,7 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
   DateTime _selectedDay = DateTime.now();
 
   List<Map<String, dynamic>> _attendanceRecords = [];
+  List<Map<String, dynamic>> _approvedLeaves = [];
 
   bool _isLoading = true;
 
@@ -47,13 +48,22 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
           )
           .get();
 
+      final leavesSnapshot = await FirebaseFirestore.instance
+          .collection('leaves')
+          .where('userId', isEqualTo: user!.uid)
+          .where('status', isEqualTo: 'approved')
+          .get();
+
       setState(() {
         _attendanceRecords = snapshot.docs
             .map((doc) => {'id': doc.id, ...doc.data()})
             .toList();
+        _approvedLeaves = leavesSnapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data()})
+            .toList();
       });
     } catch (e) {
-      debugPrint('Error fetching attendance: $e');
+      debugPrint('Error fetching attendance/leaves: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -339,6 +349,11 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
                                 'Outside',
                                 const Color(0xFFF97316),
                               ),
+                              _buildLegendItem(
+                                'LV',
+                                'Leave',
+                                const Color(0xFFA855F7),
+                              ),
                             ],
                           ),
                         ),
@@ -547,7 +562,26 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
         Color? borderColor;
         String? statusLabel;
 
-        if (hasRecord && isCurrentMonth && !isFuture) {
+        bool isLeaveDay = false;
+        if (isCurrentMonth) {
+          final dayStr = DateFormat('yyyy-MM-dd').format(day);
+          for (var data in _approvedLeaves) {
+            final start = data['startDate'] as String?;
+            final end = data['endDate'] as String?;
+            if (start != null && end != null) {
+              if (dayStr.compareTo(start) >= 0 && dayStr.compareTo(end) <= 0) {
+                isLeaveDay = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (isLeaveDay) {
+          bgColor = const Color(0xFFFAF5FF);
+          borderColor = const Color(0xFFD8B4FE);
+          statusLabel = 'LV';
+        } else if (hasRecord && isCurrentMonth && !isFuture) {
           final status = record['status']?.toString().toUpperCase() ?? '';
           if (status == 'PRESENT') {
             bgColor = const Color(0xFFF0FDF4);

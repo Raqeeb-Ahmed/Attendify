@@ -127,14 +127,27 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
             .get();
 
         final List<String> adminTokens = [];
+        final employeeName = user!.displayName ?? 'Unknown';
+
         for (var doc in adminsQuery.docs) {
+          final adminId = doc.id;
           final data = doc.data();
           final tokens = List<String>.from(data['fcmTokens'] ?? []);
           adminTokens.addAll(tokens);
+
+          // Add database notification document for each admin
+          await FirebaseFirestore.instance.collection('notifications').add({
+            'userId': adminId,
+            'title': 'New Leave Request',
+            'body': '$employeeName has requested $leaveTypeLabel leave for $days day(s).',
+            'type': 'leave',
+            'data': {'employeeId': user!.uid},
+            'read': false,
+            'createdAt': DateTime.now().toIso8601String(),
+          });
         }
 
         if (adminTokens.isNotEmpty) {
-          final employeeName = user!.displayName ?? 'Unknown';
           await PushNotificationService.instance.sendPushNotification(
             recipientTokens: adminTokens,
             title: 'New Leave Request',

@@ -1144,6 +1144,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
   Widget _buildEmployeeCalendarGrid(
     List<DateTime> days,
     Map<String, Map<String, dynamic>> monthData,
+    List<QueryDocumentSnapshot> approvedLeaves,
   ) {
     return GridView.builder(
       shrinkWrap: true,
@@ -1165,11 +1166,31 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
             DateFormat('yyyy-MM-dd').format(day) ==
             DateFormat('yyyy-MM-dd').format(DateTime.now());
 
+        bool isLeaveDay = false;
+        if (isCurrentMonth) {
+          final dayStr = DateFormat('yyyy-MM-dd').format(day);
+          for (var doc in approvedLeaves) {
+            final data = doc.data() as Map<String, dynamic>;
+            final start = data['startDate'] as String?;
+            final end = data['endDate'] as String?;
+            if (start != null && end != null) {
+              if (dayStr.compareTo(start) >= 0 && dayStr.compareTo(end) <= 0) {
+                isLeaveDay = true;
+                break;
+              }
+            }
+          }
+        }
+
         Color? bgColor;
         Color? borderColor;
         String? statusLabel;
 
-        if (hasRecord && isCurrentMonth) {
+        if (isLeaveDay) {
+          bgColor = const Color(0xFFFAF5FF);
+          borderColor = const Color(0xFFD8B4FE);
+          statusLabel = 'LV';
+        } else if (hasRecord && isCurrentMonth) {
           final status = (record['status'] as String?)?.toUpperCase() ?? '';
           if (status == 'PRESENT') {
             bgColor = const Color(0xFFF0FDF4);
@@ -1223,7 +1244,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                     style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
-                      color: borderColor,
+                      color: statusLabel == 'LV'
+                          ? const Color(0xFFA855F7)
+                          : borderColor,
                     ),
                   ),
               ],
@@ -1809,12 +1832,21 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
 
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
-              .collection('attendance')
+              .collection('leaves')
               .where('userId', isEqualTo: _selectedUid)
-              .where('date', isGreaterThanOrEqualTo: startStr)
-              .where('date', isLessThanOrEqualTo: endStr)
+              .where('status', isEqualTo: 'approved')
               .snapshots(),
-          builder: (context, attendanceSnap) {
+          builder: (context, leavesSnap) {
+            final approvedLeaves = leavesSnap.data?.docs ?? [];
+
+            return StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('attendance')
+                  .where('userId', isEqualTo: _selectedUid)
+                  .where('date', isGreaterThanOrEqualTo: startStr)
+                  .where('date', isLessThanOrEqualTo: endStr)
+                  .snapshots(),
+              builder: (context, attendanceSnap) {
             final docs = attendanceSnap.data?.docs ?? [];
             final monthData = <String, Map<String, dynamic>>{};
 
@@ -2027,7 +2059,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                                         ),
                                       ),
                                     )
-                                  : _buildEmployeeCalendarGrid(days, monthData),
+                                  : _buildEmployeeCalendarGrid(days, monthData, approvedLeaves),
                             ],
                           ),
                         ),
@@ -2057,6 +2089,11 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                                 'Outside',
                                 const Color(0xFFF97316),
                               ),
+                              _buildLegendItem(
+                                'LV',
+                                'Leave',
+                                const Color(0xFFA855F7),
+                              ),
                             ],
                           ),
                         ),
@@ -2071,7 +2108,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         );
       },
     );
-  }
+  },
+);
+}
 
   void _showDateDetails(DateTime day, Map<String, dynamic> record) {
     final checkIn = record['checkInTime'] as String?;
@@ -2431,6 +2470,7 @@ class _EmployeeCalendarDialog extends StatefulWidget {
 class _EmployeeCalendarDialogState extends State<_EmployeeCalendarDialog> {
   DateTime _currentMonth = DateTime.now();
   Map<String, Map<String, dynamic>> _attendanceData = {};
+  List<QueryDocumentSnapshot> _approvedLeaves = [];
   bool _isLoading = true;
 
   @override
@@ -2464,8 +2504,15 @@ class _EmployeeCalendarDialogState extends State<_EmployeeCalendarDialog> {
         data[d['date'] as String] = d;
       }
 
+      final leavesSnapshot = await FirebaseFirestore.instance
+          .collection('leaves')
+          .where('userId', isEqualTo: widget.userId)
+          .where('status', isEqualTo: 'approved')
+          .get();
+
       setState(() {
         _attendanceData = data;
+        _approvedLeaves = leavesSnapshot.docs;
         _isLoading = false;
       });
     } catch (e) {
@@ -2672,11 +2719,31 @@ class _EmployeeCalendarDialogState extends State<_EmployeeCalendarDialog> {
                             DateFormat('yyyy-MM-dd').format(day) ==
                             DateFormat('yyyy-MM-dd').format(DateTime.now());
 
+                        bool isLeaveDay = false;
+                        if (isCurrentMonth) {
+                          final dayStr = DateFormat('yyyy-MM-dd').format(day);
+                          for (var doc in _approvedLeaves) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final start = data['startDate'] as String?;
+                            final end = data['endDate'] as String?;
+                            if (start != null && end != null) {
+                              if (dayStr.compareTo(start) >= 0 && dayStr.compareTo(end) <= 0) {
+                                isLeaveDay = true;
+                                break;
+                              }
+                            }
+                          }
+                        }
+
                         Color? bgColor;
                         Color? borderColor;
                         String? statusLabel;
 
-                        if (hasRecord && isCurrentMonth) {
+                        if (isLeaveDay) {
+                          bgColor = const Color(0xFFFAF5FF);
+                          borderColor = const Color(0xFFD8B4FE);
+                          statusLabel = 'LV';
+                        } else if (hasRecord && isCurrentMonth) {
                           final status =
                               (record['status'] as String?)?.toUpperCase() ??
                               '';
@@ -2734,7 +2801,9 @@ class _EmployeeCalendarDialogState extends State<_EmployeeCalendarDialog> {
                                     style: TextStyle(
                                       fontSize: 9,
                                       fontWeight: FontWeight.bold,
-                                      color: borderColor,
+                                      color: statusLabel == 'LV'
+                                          ? const Color(0xFFA855F7)
+                                          : borderColor,
                                     ),
                                   ),
                               ],
@@ -2751,10 +2820,12 @@ class _EmployeeCalendarDialogState extends State<_EmployeeCalendarDialog> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildLegendItem('P', 'Present', const Color(0xFF22C55E)),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 _buildLegendItem('L', 'Late', const Color(0xFFF59E0B)),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 _buildLegendItem('O', 'Outside', const Color(0xFFF97316)),
+                const SizedBox(width: 12),
+                _buildLegendItem('LV', 'Leave', const Color(0xFFA855F7)),
               ],
             ),
           ],

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
@@ -261,6 +262,7 @@ class ForegroundTrackingService {
 
   /// Request battery optimization exemption (shows system dialog like WhatsApp)
   static Future<void> requestBatteryExemption() async {
+    if (!Platform.isAndroid) return;
     try {
       final isIgnoring = await FlutterForegroundTask.isIgnoringBatteryOptimizations;
       if (!isIgnoring) {

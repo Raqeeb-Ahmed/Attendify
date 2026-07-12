@@ -532,6 +532,16 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                     }
                   }
 
+                  await FirebaseFirestore.instance.collection('notifications').add({
+                    'userId': docId,
+                    'title': 'Account Approved',
+                    'body': 'Congratulations! Your account has been approved by the Admin.',
+                    'type': 'approval',
+                    'data': {},
+                    'read': false,
+                    'createdAt': DateTime.now().toIso8601String(),
+                  });
+
                   if (ctx.mounted) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       SnackBar(

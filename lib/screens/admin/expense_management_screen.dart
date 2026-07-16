@@ -13,6 +13,7 @@ class ExpenseManagementScreen extends StatefulWidget {
 
 class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
   String _filterStatus = 'all';
+  final Map<String, bool> _updatingDocs = {};
 
   final List<Map<String, String>> _statusTabs = [
     {'id': 'all', 'label': 'All'},
@@ -22,17 +23,25 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
   ];
 
   Future<void> _updateStatus(String docId, String status) async {
-    await FirebaseFirestore.instance.collection('expenses').doc(docId).update({
-      'status': status,
-      'reviewedAt': DateTime.now().toIso8601String(),
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Expense ${status == 'approved' ? 'approved' : 'rejected'}'),
-          backgroundColor: status == 'approved' ? const Color(0xFF22C55E) : Colors.red,
-        ),
-      );
+    if (_updatingDocs[docId] == true) return;
+    setState(() => _updatingDocs[docId] = true);
+    try {
+      await FirebaseFirestore.instance.collection('expenses').doc(docId).update({
+        'status': status,
+        'reviewedAt': DateTime.now().toIso8601String(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Expense ${status == 'approved' ? 'approved' : 'rejected'}'),
+            backgroundColor: status == 'approved' ? const Color(0xFF22C55E) : Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingDocs[docId] = false);
+      }
     }
   }
 
@@ -271,24 +280,46 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed: () => _updateStatus(docId, 'rejected'),
+                    onPressed: _updatingDocs[docId] == true
+                        ? null
+                        : () => _updateStatus(docId, 'rejected'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFDC2626),
                       side: const BorderSide(color: Color(0xFFFCA5A5)),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     ),
-                    child: const Text('Reject', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    child: _updatingDocs[docId] == true && status == 'rejected'
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: Color(0xFFDC2626),
+                            ),
+                          )
+                        : const Text('Reject', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: () => _updateStatus(docId, 'approved'),
+                    onPressed: _updatingDocs[docId] == true
+                        ? null
+                        : () => _updateStatus(docId, 'approved'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF22C55E),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     ),
-                    child: const Text('Approve', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+                    child: _updatingDocs[docId] == true && status == 'approved'
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Approve', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
                   ),
                 ],
               ),

@@ -26,6 +26,8 @@ import 'my_learning_screen.dart';
 import 'my_documents_screen.dart';
 import 'my_profile_screen.dart';
 import '../../widgets/monthly_progress_widget.dart';
+import '../admin/announcements_screen.dart';
+import 'my_assets_screen.dart';
 
 class EmployeeDashboard extends StatefulWidget {
   const EmployeeDashboard({super.key});
@@ -394,6 +396,12 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
         break;
       case 8:
         page = const MyProfileScreen();
+        break;
+      case 9:
+        page = const AnnouncementsScreen();
+        break;
+      case 10:
+        page = const MyAssetsScreen();
         break;
       default:
         return Column(
@@ -845,7 +853,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
           const SizedBox(height: 12),
           _timeRow(
             'Inside Office',
-            formatMins(_todayData?['insideTime'] ?? 0),
+            formatMins((_todayData?['insideTime'] ?? 0) + (_todayData?['offlineTime'] ?? 0)),
             const Color(0xFF22C55E),
           ),
           _timeRow(

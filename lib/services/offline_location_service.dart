@@ -164,6 +164,7 @@ class OfflineLocationService {
             isInsideRadius,
             timestampStr,
             overrideAttendanceDate: dateStr,
+            forceWrite: true,
           );
         } catch (e) {
           debugPrint('[OfflineLocationService] Playback error for record: $e');

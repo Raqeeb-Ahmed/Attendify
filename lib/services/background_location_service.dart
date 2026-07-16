@@ -128,6 +128,10 @@ class BackgroundLocationService {
       Position position;
       try {
         position = await _locationService.getCurrentLocation();
+        if (position.accuracy > 150) {
+          debugPrint('[BackgroundLocationService] Low accuracy (${position.accuracy}m). Ignoring.');
+          return;
+        }
       } catch (e) {
         debugPrint('[BackgroundLocationService] Error getting current position: $e');
         return;
@@ -155,6 +159,7 @@ class BackgroundLocationService {
         'status': locationStatus,
         'insideRadius': isInsideRadius,
         'distanceFromOffice': distance.round(),
+        'isMocked': position.isMocked,
       };
 
       if (!isOnline) {

@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "41353583974-7rk2fj0q19p7j3qipd6lirtba4dl9g32.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attendo.attendance",
+            "certificate_hash": "5a5604f2b1498dbab2179bc2d45df27e7fc895f7"
+          }
+        },
+        {
           "client_id": "41353583974-th9ti2cvdki48ntj22gdjma9e58lo2e9.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

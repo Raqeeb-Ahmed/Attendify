@@ -2116,9 +2116,10 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     final checkIn = record['checkInTime'] as String?;
     final checkOut = record['checkOutTime'] as String?;
     final status = record['status'] as String? ?? 'pending';
-    final insideTime = (record['insideTime'] as num?)?.toInt() ?? 0;
+    final insideTimeVal = (record['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (record['outsideTime'] as num?)?.toInt() ?? 0;
     final offlineTime = (record['offlineTime'] as num?)?.toInt() ?? 0;
+    final insideTime = insideTimeVal + offlineTime;
     final totalHours = (record['totalHours'] as num?)?.toDouble() ?? 0.0;
     final atOffice = record['atOffice'] as bool? ?? false;
     final checkInMethod = record['checkInMethod'] as String? ?? 'manual';
@@ -2891,9 +2892,10 @@ class _EmployeeCalendarDialogState extends State<_EmployeeCalendarDialog> {
     final checkIn = record['checkInTime'] as String?;
     final checkOut = record['checkOutTime'] as String?;
     final status = record['status'] as String? ?? 'pending';
-    final insideTime = (record['insideTime'] as num?)?.toInt() ?? 0;
+    final insideTimeVal = (record['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (record['outsideTime'] as num?)?.toInt() ?? 0;
     final offlineTime = (record['offlineTime'] as num?)?.toInt() ?? 0;
+    final insideTime = insideTimeVal + offlineTime;
     final totalHours = (record['totalHours'] as num?)?.toDouble() ?? 0.0;
     final atOffice = record['atOffice'] as bool? ?? false;
     final checkInMethod = record['checkInMethod'] as String? ?? 'manual';

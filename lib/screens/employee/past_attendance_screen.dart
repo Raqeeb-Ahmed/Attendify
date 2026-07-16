@@ -741,13 +741,14 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
   }
 
   Widget _buildTimeAllocation(Map<String, dynamic> record) {
-    final insideTime = record['insideTime'];
-    final outsideTime = record['outsideTime'];
-    final offlineTime = record['offlineTime'];
+    final insideTimeVal = (record['insideTime'] as num?)?.toInt() ?? 0;
+    final outsideTime = (record['outsideTime'] as num?)?.toInt() ?? 0;
+    final offlineTime = (record['offlineTime'] as num?)?.toInt() ?? 0;
+    final insideTime = insideTimeVal + offlineTime;
     final extraHours = record['extraHours'];
     final totalHours = (record['totalHours'] as num?)?.toDouble() ?? 0.0;
 
-    if (insideTime == null && outsideTime == null && extraHours == null) {
+    if (insideTime == 0 && outsideTime == 0 && (extraHours == null || extraHours == 0)) {
       return const SizedBox.shrink();
     }
 

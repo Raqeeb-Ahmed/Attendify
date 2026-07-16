@@ -44,6 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
             'phone': '',
             'baseSalary': 0,
             'allowances': 0,
+            'photoURL': userCred.user!.photoURL,
             'createdAt': DateTime.now().toIso8601String(),
           });
 
@@ -86,6 +87,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
           // Read again to get latest data
           userDoc = await usersRef.get();
+        } else {
+          // User already exists, check if we need to sync photoURL
+          final data = userDoc.data();
+          if (data != null && data['photoURL'] == null && userCred.user!.photoURL != null) {
+            await usersRef.update({
+              'photoURL': userCred.user!.photoURL,
+            });
+            // Fetch updated doc so that UI gets the photoURL immediately
+            userDoc = await usersRef.get();
+          }
         }
 
         // AuthWrapper will auto-redirect based on auth state change

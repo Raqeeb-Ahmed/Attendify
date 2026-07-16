@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:intl/intl.dart';
 
 class StatsCardsRow extends StatelessWidget {
   final bool isMobile;
@@ -9,194 +8,177 @@ class StatsCardsRow extends StatelessWidget {
   final String selectedFilter;
   final ValueChanged<String> onFilterChanged;
 
+  final QuerySnapshot? usersSnapshot;
+  final DatabaseEvent? heartbeatSnapshot;
+  final QuerySnapshot? attendanceSnapshot;
+
   const StatsCardsRow({
     super.key,
     this.isMobile = false,
     this.selectedDate,
     required this.selectedFilter,
     required this.onFilterChanged,
+    this.usersSnapshot,
+    this.heartbeatSnapshot,
+    this.attendanceSnapshot,
   });
 
   @override
   Widget build(BuildContext context) {
-    final today =
-        selectedDate ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    // Combine multiple streams for accurate stats
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('role', whereIn: const ['employee', 'manager'])
-          .snapshots(),
-      builder: (context, usersSnapshot) {
-        return StreamBuilder<DatabaseEvent>(
-          stream: FirebaseDatabase.instance.ref('presence').onValue,
-          builder: (context, heartbeatSnapshot) {
-            return StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('attendance')
-                  .where('date', isEqualTo: today)
-                  .snapshots(),
-              builder: (context, attendanceSnapshot) {
-                int totalStaff = 0;
-                int present = 0;
-                int late = 0;
-                int outOfSystem = 0;
-                int offline = 0;
-                int online = 0;
-                int inOffice = 0;
+    int totalStaff = 0;
+    int present = 0;
+    int late = 0;
+    int outOfSystem = 0;
+    int offline = 0;
+    int online = 0;
+    int inOffice = 0;
 
-                // Count total staff from users collection (employees only)
-                final employeeIds = <String>{};
-                if (usersSnapshot.hasData) {
-                  totalStaff = usersSnapshot.data!.docs.length;
-                  for (var doc in usersSnapshot.data!.docs) {
-                    employeeIds.add(doc.id);
-                  }
-                }
+    // Count total staff from users collection (employees only)
+    final employeeIds = <String>{};
+    if (usersSnapshot != null) {
+      totalStaff = usersSnapshot!.docs.length;
+      for (var doc in usersSnapshot!.docs) {
+        employeeIds.add(doc.id);
+      }
+    }
 
-                // Map attendance status
-                final attMap = <String, String>{};
-                if (attendanceSnapshot.hasData) {
-                  for (var doc in attendanceSnapshot.data!.docs) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final uid = data['userId'] as String?;
-                    final status =
-                        (data['status'] as String?)?.toLowerCase() ?? '';
-                    final atOffice = data['atOffice'] as bool? ?? false;
+    // Map attendance status
+    final attMap = <String, String>{};
+    if (attendanceSnapshot != null) {
+      for (var doc in attendanceSnapshot!.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final uid = data['userId'] as String?;
+        final status =
+            (data['status'] as String?)?.toLowerCase() ?? '';
+        final atOffice = data['atOffice'] as bool? ?? false;
 
-                    if (uid != null) {
-                      attMap[uid] = status;
-                    }
+        if (uid != null) {
+          attMap[uid] = status;
+        }
 
-                    if (status == 'present') {
-                      present++;
-                      if (atOffice) inOffice++;
-                    } else if (status == 'late') {
-                      late++;
-                      if (atOffice) inOffice++;
-                    } else if (status == 'outside') {
-                      outOfSystem++;
-                    }
-                  }
-                }
+        if (status == 'present') {
+          present++;
+          if (atOffice) inOffice++;
+        } else if (status == 'late') {
+          late++;
+          if (atOffice) inOffice++;
+        } else if (status == 'outside') {
+          outOfSystem++;
+        }
+      }
+    }
 
-                // Count online/offline only for known employees
-                if (heartbeatSnapshot.hasData && employeeIds.isNotEmpty) {
-                  final dbEvent = heartbeatSnapshot.data!;
-                  final hbData =
-                      dbEvent.snapshot.value as Map<dynamic, dynamic>? ?? {};
+    // Count online/offline only for known employees
+    if (heartbeatSnapshot != null && employeeIds.isNotEmpty) {
+      final hbData =
+          heartbeatSnapshot!.snapshot.value as Map<dynamic, dynamic>? ?? {};
 
-                  hbData.forEach((key, val) {
-                    if (val != null) {
-                      final data = Map<String, dynamic>.from(val as Map);
-                      final uid = data['userId'] as String? ?? key.toString();
-                      if (employeeIds.contains(uid)) {
-                        final isOnline = data['online'] == true;
-                        final status = attMap[uid] ?? 'pending';
-                        final isCheckInOk =
-                            status == 'present' || status == 'late';
+      hbData.forEach((key, val) {
+        if (val != null) {
+          final data = Map<String, dynamic>.from(val as Map);
+          final uid = data['userId'] as String? ?? key.toString();
+          if (employeeIds.contains(uid)) {
+            final isOnline = data['online'] == true;
+            final status = attMap[uid] ?? 'pending';
+            final isCheckInOk =
+                status == 'present' || status == 'late';
 
-                        if (isOnline && isCheckInOk) {
-                          online++;
-                        } else {
-                          offline++;
-                        }
-                      }
-                    }
-                  });
-                }
+            if (isOnline && isCheckInOk) {
+              online++;
+            }
+          }
+        }
+      });
+    }
 
-                final cards = [
-                  _StatData(
-                    Icons.groups_rounded,
-                    'TOTAL STAFF',
-                    totalStaff.toString(),
-                    const Color(0xFF6366F1),
-                    const Color(0xFFEEF2FF),
-                    'ALL',
-                  ),
-                  _StatData(
-                    Icons.download_rounded,
-                    'PRESENT',
-                    present.toString(),
-                    const Color(0xFF22C55E),
-                    const Color(0xFFF0FDF4),
-                    'PRESENT',
-                  ),
-                  _StatData(
-                    Icons.warning_amber_rounded,
-                    'LATE',
-                    late.toString(),
-                    const Color(0xFFF59E0B),
-                    const Color(0xFFFEF3C7),
-                    'LATE',
-                  ),
-                  _StatData(
-                    Icons.logout_rounded,
-                    'OUT OF SYSTEM',
-                    outOfSystem.toString(),
-                    const Color(0xFFF97316),
-                    const Color(0xFFFFF7ED),
-                    'OUT_OF_SYSTEM',
-                  ),
-                  _StatData(
-                    Icons.wifi_off_rounded,
-                    'OFFLINE',
-                    offline.toString(),
-                    const Color(0xFF64748B),
-                    const Color(0xFFF8FAFC),
-                    'OFFLINE',
-                  ),
-                  _StatData(
-                    Icons.cell_tower_rounded,
-                    'ONLINE',
-                    online.toString(),
-                    const Color(0xFF06B6D4),
-                    const Color(0xFFECFEFF),
-                    'ONLINE',
-                  ),
-                  _StatData(
-                    Icons.arrow_upward_rounded,
-                    'IN OFFICE',
-                    inOffice.toString(),
-                    const Color(0xFF8B5CF6),
-                    const Color(0xFFF5F3FF),
-                    'IN_OFFICE',
-                  ),
-                ];
+    // offline = staff registered who are not currently online OR not checked-in/late
+    offline = totalStaff - online;
 
-                if (isMobile) {
-                  return SizedBox(
-                    height: 80,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: cards.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(width: 12),
-                      itemBuilder: (context, index) =>
-                          SizedBox(width: 160, child: _buildCard(cards[index])),
-                    ),
-                  );
-                }
+    final cards = [
+      _StatData(
+        Icons.groups_rounded,
+        'TOTAL STAFF',
+        totalStaff.toString(),
+        const Color(0xFF6366F1),
+        const Color(0xFFEEF2FF),
+        'ALL',
+      ),
+      _StatData(
+        Icons.download_rounded,
+        'PRESENT',
+        present.toString(),
+        const Color(0xFF22C55E),
+        const Color(0xFFF0FDF4),
+        'PRESENT',
+      ),
+      _StatData(
+        Icons.warning_amber_rounded,
+        'LATE',
+        late.toString(),
+        const Color(0xFFF59E0B),
+        const Color(0xFFFEF3C7),
+        'LATE',
+      ),
+      _StatData(
+        Icons.logout_rounded,
+        'OUT OF SYSTEM',
+        outOfSystem.toString(),
+        const Color(0xFFF97316),
+        const Color(0xFFFFF7ED),
+        'OUT_OF_SYSTEM',
+      ),
+      _StatData(
+        Icons.wifi_off_rounded,
+        'OFFLINE',
+        offline.toString(),
+        const Color(0xFF64748B),
+        const Color(0xFFF8FAFC),
+        'OFFLINE',
+      ),
+      _StatData(
+        Icons.cell_tower_rounded,
+        'ONLINE',
+        online.toString(),
+        const Color(0xFF06B6D4),
+        const Color(0xFFECFEFF),
+        'ONLINE',
+      ),
+      _StatData(
+        Icons.arrow_upward_rounded,
+        'IN OFFICE',
+        inOffice.toString(),
+        const Color(0xFF8B5CF6),
+        const Color(0xFFF5F3FF),
+        'IN_OFFICE',
+      ),
+    ];
 
-                return Row(
-                  children: cards.asMap().entries.map((entry) {
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: entry.key < cards.length - 1 ? 14 : 0,
-                        ),
-                        child: _buildCard(entry.value),
-                      ),
-                    );
-                  }).toList(),
-                );
-              },
-            );
-          },
+    if (isMobile) {
+      return SizedBox(
+        height: 80,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: cards.length,
+          separatorBuilder: (context, index) =>
+              const SizedBox(width: 12),
+          itemBuilder: (context, index) =>
+              SizedBox(width: 160, child: _buildCard(cards[index])),
+        ),
+      );
+    }
+
+    return Row(
+      children: cards.asMap().entries.map((entry) {
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              right: entry.key < cards.length - 1 ? 14 : 0,
+            ),
+            child: _buildCard(entry.value),
+          ),
         );
-      },
+      }).toList(),
     );
   }
 

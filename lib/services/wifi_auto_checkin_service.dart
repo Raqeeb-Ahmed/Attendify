@@ -159,6 +159,11 @@ class WiFiAutoCheckInService {
             locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
           );
 
+          if (position.accuracy > 150) {
+            debugPrint('[WiFiAutoCheckInService] Low accuracy (${position.accuracy}m). Ignoring.');
+            return;
+          }
+
           final distance = _attendanceService.getDistanceFromLatLonInM(
             AppConfig.officeLat,
             AppConfig.officeLng,

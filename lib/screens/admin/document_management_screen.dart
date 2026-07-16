@@ -49,6 +49,8 @@ class _DocumentManagementScreenState extends State<DocumentManagementScreen> {
         .get();
     final users = usersSnap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
 
+    bool isSaving = false;
+
     if (!mounted) return;
     await showDialog(
       // ignore: use_build_context_synchronously
@@ -86,7 +88,7 @@ class _DocumentManagementScreenState extends State<DocumentManagementScreen> {
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => setS(() => selectedUserId = v),
+                    onChanged: isSaving ? null : (v) => setS(() => selectedUserId = v),
                     decoration: _inputDec(),
                   ),
                   const SizedBox(height: 12),
@@ -106,13 +108,14 @@ class _DocumentManagementScreenState extends State<DocumentManagementScreen> {
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => setS(() => selectedType = v!),
+                    onChanged: isSaving ? null : (v) => setS(() => selectedType = v!),
                     decoration: _inputDec(),
                   ),
                   const SizedBox(height: 12),
                   _label('Title'),
                   TextField(
                     controller: titleCtrl,
+                    enabled: !isSaving,
                     decoration: _inputDec(hint: 'Document title'),
                     style: const TextStyle(fontSize: 13),
                   ),
@@ -121,6 +124,7 @@ class _DocumentManagementScreenState extends State<DocumentManagementScreen> {
                   TextField(
                     controller: notesCtrl,
                     maxLines: 2,
+                    enabled: !isSaving,
                     decoration: _inputDec(hint: 'Additional notes...'),
                     style: const TextStyle(fontSize: 13),
                   ),
@@ -130,39 +134,55 @@ class _DocumentManagementScreenState extends State<DocumentManagementScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: isSaving ? null : () => Navigator.pop(ctx),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6366F1),
               ),
-              onPressed: () async {
-                if (selectedUserId == null) return;
-                final messenger = ScaffoldMessenger.of(context);
-                final user = users.firstWhere((u) => u['id'] == selectedUserId);
-                await FirebaseFirestore.instance.collection('documents').add({
-                  'userId': selectedUserId,
-                  'userName': user['name'] ?? '',
-                  'type': selectedType,
-                  'title': titleCtrl.text.trim().isEmpty
-                      ? (_typeLabels[selectedType] ?? selectedType)
-                      : titleCtrl.text.trim(),
-                  'notes': notesCtrl.text.trim(),
-                  'createdAt': DateTime.now().toIso8601String(),
-                });
-                if (ctx.mounted) Navigator.pop(ctx);
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Document created'),
-                    backgroundColor: Color(0xFF22C55E),
-                  ),
-                );
-              },
-              child: const Text(
-                'Create',
-                style: TextStyle(color: Colors.white),
-              ),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (selectedUserId == null) return;
+                      setS(() => isSaving = true);
+                      try {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final user = users.firstWhere((u) => u['id'] == selectedUserId);
+                        await FirebaseFirestore.instance.collection('documents').add({
+                          'userId': selectedUserId,
+                          'userName': user['name'] ?? '',
+                          'type': selectedType,
+                          'title': titleCtrl.text.trim().isEmpty
+                              ? (_typeLabels[selectedType] ?? selectedType)
+                              : titleCtrl.text.trim(),
+                          'notes': notesCtrl.text.trim(),
+                          'createdAt': DateTime.now().toIso8601String(),
+                        });
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Document created'),
+                            backgroundColor: Color(0xFF22C55E),
+                          ),
+                        );
+                      } catch (e) {
+                        setS(() => isSaving = false);
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Create',
+                      style: TextStyle(color: Colors.white),
+                    ),
             ),
           ],
         ),
@@ -573,29 +593,56 @@ class _DocumentManagementScreenState extends State<DocumentManagementScreen> {
   }
 
   Future<void> _handleDelete(String docId) async {
-    final confirm = await showDialog<bool>(
+    bool isDeleting = false;
+    await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Document'),
-        content: const Text('Are you sure you want to delete this document?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Delete Document'),
+          content: const Text('Are you sure you want to delete this document?'),
+          actions: [
+            TextButton(
+              onPressed: isDeleting ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: isDeleting
+                  ? null
+                  : () async {
+                      setS(() => isDeleting = true);
+                      try {
+                        await FirebaseFirestore.instance
+                            .collection('documents')
+                            .doc(docId)
+                            .delete();
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Document deleted'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setS(() => isDeleting = false);
+                      }
+                    },
+              child: isDeleting
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.red,
+                      ),
+                    )
+                  : const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
       ),
     );
-    if (confirm == true) {
-      await FirebaseFirestore.instance
-          .collection('documents')
-          .doc(docId)
-          .delete();
-    }
   }
 
   InputDecoration _inputDec({String? hint}) {

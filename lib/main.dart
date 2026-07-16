@@ -12,6 +12,7 @@ import 'screens/login_screen.dart';
 import 'services/auth_service.dart';
 import 'services/push_notification_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -25,10 +26,26 @@ Future<void> main() async {
     debugPrint("Warning: Could not load .env file: $e");
   }
 
-  await Firebase.initializeApp();
+  if (kIsWeb) {
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: "AIzaSyDqDCmvqkVXO0sS8eL6gItD-YG4Ho0UEcU",
+        authDomain: "attendify-2e534.firebaseapp.com",
+        databaseURL: "https://attendify-2e534-default-rtdb.firebaseio.com",
+        projectId: "attendify-2e534",
+        storageBucket: "attendify-2e534.firebasestorage.app",
+        messagingSenderId: "41353583974",
+        appId: "1:41353583974:web:e4e3752e534606f2e27c06",
+      ),
+    );
+  } else {
+    await Firebase.initializeApp();
+  }
 
-  // Set the background messaging handler early in main
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // Set the background messaging handler early in main (only on non-web)
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
 
   runApp(const AttendanceApp());
 
@@ -42,7 +59,7 @@ Future<void> _initializeServices() async {
       GoogleSignIn.instance.initialize(
         serverClientId: AppConfig.googleServerClientId,
       ),
-      PushNotificationService.instance.initialize(),
+      if (!kIsWeb) PushNotificationService.instance.initialize(),
     ]);
 
     debugPrint("✅ Background services initialized");
@@ -87,6 +104,7 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
+
       builder: (context, authSnapshot) {
         if (authSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -128,6 +146,10 @@ class AuthWrapper extends StatelessWidget {
             final role = data?['role'] ?? 'employee';
             final approved = data?['approved'] ?? true;
 
+            if (kIsWeb && role == 'employee') {
+              return const WebAccessDeniedScreen();
+            }
+
             if (role == 'admin' || role == 'manager') {
               return const AdminDashboard();
             } else {
@@ -144,8 +166,50 @@ class AuthWrapper extends StatelessWidget {
   }
 }
 
-class PendingApprovalScreen extends StatelessWidget {
+class PendingApprovalScreen extends StatefulWidget {
   const PendingApprovalScreen({super.key});
+
+  @override
+  State<PendingApprovalScreen> createState() => _PendingApprovalScreenState();
+}
+
+class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _ensureUserDocExists();
+  }
+
+  Future<void> _ensureUserDocExists() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final docRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+      final docSnap = await docRef.get();
+      if (!docSnap.exists) {
+        await docRef.set({
+          'name': user.displayName ?? 'Unknown',
+          'email': user.email ?? '',
+          'role': 'employee',
+          'approved': false,
+          'department': '',
+          'designation': '',
+          'phone': '',
+          'baseSalary': 0,
+          'allowances': 0,
+          'createdAt': DateTime.now().toIso8601String(),
+        });
+        debugPrint(
+          '[PendingApprovalScreen] User document auto-created in Firestore',
+        );
+      }
+    } catch (e) {
+      debugPrint('[PendingApprovalScreen] Error ensuring user doc: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -238,6 +302,42 @@ class PendingApprovalScreen extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class WebAccessDeniedScreen extends StatelessWidget {
+  const WebAccessDeniedScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFFF8F9FC),
+      body: Center(
+        child: Card(
+          margin: EdgeInsets.all(24),
+          child: Padding(
+            padding: EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.monitor_rounded, size: 64, color: Color(0xFFEF4444)),
+                SizedBox(height: 16),
+                Text(
+                  'Web Access Restricted',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'This Web Portal is only accessible for Admins and Managers.\nEmployees must log in using the mobile application.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -26,12 +26,20 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
   String? _expandedUserId;
 
   final List<String> _filters = [
-    'All', 'Present', 'Late', 'Outside', 'Pending', 'Online', 'Offline', 'Out of System'
+    'All',
+    'Present',
+    'Late',
+    'Outside',
+    'Pending',
+    'Online',
+    'Offline',
+    'Out of System',
   ];
 
   List<EmployeeMapData> get _filtered {
     return widget.employees.where((emp) {
-      final matchesSearch = emp.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+      final matchesSearch =
+          emp.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           emp.email.toLowerCase().contains(_searchQuery.toLowerCase());
       if (!matchesSearch) return false;
       final normalizedFilter = widget.activeFilter.toUpperCase();
@@ -54,7 +62,10 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
               (emp.status != EmployeeStatus.present &&
                   emp.status != EmployeeStatus.late_);
         case 'IN_OFFICE':
-          return emp.status == EmployeeStatus.present || (emp.status == EmployeeStatus.late_ && emp.distance != null && emp.distance! <= 100);
+          return emp.status == EmployeeStatus.present ||
+              (emp.status == EmployeeStatus.late_ &&
+                  emp.distance != null &&
+                  emp.distance! <= 100);
         default:
           return true;
       }
@@ -80,7 +91,9 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
           final data = doc.data() as Map<String, dynamic>;
           final uid = data['userId'] as String?;
           if (uid != null) attMap[uid] = data;
-          insideMinutes += (data['insideTime'] as num?)?.toInt() ?? 0;
+          insideMinutes +=
+              ((data['insideTime'] as num?)?.toInt() ?? 0) +
+              ((data['offlineTime'] as num?)?.toInt() ?? 0);
           outsideMinutes += (data['outsideTime'] as num?)?.toInt() ?? 0;
           offlineMinutes += (data['offlineTime'] as num?)?.toInt() ?? 0;
           extraMinutes += (data['extraHours'] as num?)?.toInt() ?? 0;
@@ -108,21 +121,31 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: Row(
                   children: [
-                    Text('Team Directory', style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade800,
-                    )),
+                    Text(
+                      'Team Directory',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEEF2FF),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         '${filtered.length} shown',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF6366F1), fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF6366F1),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -138,8 +161,15 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
                   onChanged: (v) => setState(() => _searchQuery = v),
                   decoration: InputDecoration(
                     hintText: 'Search employees...',
-                    hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                    prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey.shade400),
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade400,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      size: 20,
+                      color: Colors.grey.shade400,
+                    ),
                     filled: true,
                     fillColor: const Color(0xFFF8FAFC),
                     contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -176,17 +206,36 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('TIME ALLOCATION TODAY', style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade400,
-                      letterSpacing: 1,
-                    )),
+                    Text(
+                      'TIME ALLOCATION TODAY',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade400,
+                        letterSpacing: 1,
+                      ),
+                    ),
                     const SizedBox(height: 10),
-                    _timeRow('Inside Office', _formatMins(insideMinutes), const Color(0xFF22C55E)),
-                    _timeRow('Outside', _formatMins(outsideMinutes), const Color(0xFFF97316)),
-                    _timeRow('Offline/Idle', _formatMins(offlineMinutes), const Color(0xFF94A3B8)),
-                    _timeRow('Extra Hours', _formatMins(extraMinutes), const Color(0xFF6366F1)),
+                    _timeRow(
+                      'Inside Office',
+                      _formatMins(insideMinutes),
+                      const Color(0xFF22C55E),
+                    ),
+                    _timeRow(
+                      'Outside',
+                      _formatMins(outsideMinutes),
+                      const Color(0xFFF97316),
+                    ),
+                    _timeRow(
+                      'Offline/Idle',
+                      _formatMins(offlineMinutes),
+                      const Color(0xFF94A3B8),
+                    ),
+                    _timeRow(
+                      'Extra Hours',
+                      _formatMins(extraMinutes),
+                      const Color(0xFF6366F1),
+                    ),
                   ],
                 ),
               ),
@@ -194,14 +243,21 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
               const Divider(height: 1),
 
               // Employee list
-              ...filtered.map((emp) => _buildEmployeeRow(emp, attMap[emp.userId])),
+              ...filtered.map(
+                (emp) => _buildEmployeeRow(emp, attMap[emp.userId]),
+              ),
 
               if (filtered.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(32),
                   child: Center(
-                    child: Text('No employees match the filter',
-                        style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+                    child: Text(
+                      'No employees match the filter',
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -213,12 +269,18 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
 
   Widget _buildFilterChip(String label) {
     String key = 'ALL';
-    if (label == 'Present') key = 'PRESENT';
-    else if (label == 'Late') key = 'LATE';
-    else if (label == 'Outside' || label == 'Out of System') key = 'OUT_OF_SYSTEM';
-    else if (label == 'Pending') key = 'PENDING';
-    else if (label == 'Online') key = 'ONLINE';
-    else if (label == 'Offline') key = 'OFFLINE';
+    if (label == 'Present')
+      key = 'PRESENT';
+    else if (label == 'Late')
+      key = 'LATE';
+    else if (label == 'Outside' || label == 'Out of System')
+      key = 'OUT_OF_SYSTEM';
+    else if (label == 'Pending')
+      key = 'PENDING';
+    else if (label == 'Online')
+      key = 'ONLINE';
+    else if (label == 'Offline')
+      key = 'OFFLINE';
 
     final isActive = widget.activeFilter.toUpperCase() == key;
     return GestureDetector(
@@ -230,11 +292,14 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
           borderRadius: BorderRadius.circular(20),
           border: isActive ? null : Border.all(color: Colors.grey.shade200),
         ),
-        child: Text(label, style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: isActive ? Colors.white : Colors.grey.shade600,
-        )),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: isActive ? Colors.white : Colors.grey.shade600,
+          ),
+        ),
       ),
     );
   }
@@ -245,13 +310,32 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
       child: Row(
         children: [
           Container(
-            width: 9, height: 9,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(3),
+            ),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Text(label,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w500))),
-          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -259,16 +343,17 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
 
   Widget _buildEmployeeRow(EmployeeMapData emp, Map<String, dynamic>? att) {
     final isExpanded = _expandedUserId == emp.userId;
-    final status = att?['status'] as String? ??
+    final status =
+        att?['status'] as String? ??
         (emp.status == EmployeeStatus.present
             ? 'present'
             : emp.status == EmployeeStatus.late_
-                ? 'late'
-                : emp.status == EmployeeStatus.outside
-                    ? 'outside'
-                    : emp.status == EmployeeStatus.offline
-                        ? 'offline'
-                        : 'pending');
+            ? 'late'
+            : emp.status == EmployeeStatus.outside
+            ? 'outside'
+            : emp.status == EmployeeStatus.offline
+            ? 'offline'
+            : 'pending');
 
     final checkInRaw = att?['checkInTime'] as String?;
     final checkOutRaw = att?['checkOutTime'] as String?;
@@ -279,22 +364,26 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
         ? DateFormat('hh:mm a').format(DateTime.parse(checkOutRaw).toLocal())
         : '--:--';
 
-    final insideTime = (att?['insideTime'] as num?)?.toInt() ?? 0;
+    final insideTimeVal = (att?['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (att?['outsideTime'] as num?)?.toInt() ?? 0;
     final offlineTime = (att?['offlineTime'] as num?)?.toInt() ?? 0;
+    final insideTime = insideTimeVal + offlineTime;
     final extraHours = (att?['extraHours'] as num?)?.toInt() ?? 0;
 
     return Column(
       children: [
         InkWell(
-          onTap: () => setState(() => _expandedUserId = isExpanded ? null : emp.userId),
+          onTap: () =>
+              setState(() => _expandedUserId = isExpanded ? null : emp.userId),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
               color: isExpanded ? const Color(0xFFF8F9FF) : Colors.white,
               border: Border(
                 left: BorderSide(
-                  color: emp.isOnline ? const Color(0xFF22C55E) : Colors.transparent,
+                  color: emp.isOnline
+                      ? const Color(0xFF22C55E)
+                      : Colors.transparent,
                   width: 3,
                 ),
                 bottom: BorderSide(color: Colors.grey.shade100),
@@ -307,16 +396,25 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
                     CircleAvatar(
                       radius: 18,
                       backgroundColor: emp.avatarColor,
-                      child: Text(emp.initials, style: const TextStyle(
-                        color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold,
-                      )),
+                      child: Text(
+                        emp.initials,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                     Positioned(
-                      right: 0, bottom: 0,
+                      right: 0,
+                      bottom: 0,
                       child: Container(
-                        width: 10, height: 10,
+                        width: 10,
+                        height: 10,
                         decoration: BoxDecoration(
-                          color: emp.isOnline ? const Color(0xFF22C55E) : const Color(0xFF94A3B8),
+                          color: emp.isOnline
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFF94A3B8),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 1.5),
                         ),
@@ -329,18 +427,32 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(emp.name, style: TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800,
-                      )),
-                      Text(emp.email, style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                      Text(
+                        emp.name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                      Text(
+                        emp.email,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 _statusBadge(status),
                 const SizedBox(width: 6),
                 Icon(
-                  isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                  size: 18, color: Colors.grey.shade400,
+                  isExpanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                  size: 18,
+                  color: Colors.grey.shade400,
                 ),
               ],
             ),
@@ -360,25 +472,62 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Today's Summary", style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: Colors.grey.shade800,
-                )),
+                Text(
+                  "Today's Summary",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(child: _detailBox('Check In', checkIn, const Color(0xFF22C55E))),
+                    Expanded(
+                      child: _detailBox(
+                        'Check In',
+                        checkIn,
+                        const Color(0xFF22C55E),
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    Expanded(child: _detailBox('Check Out', checkOut, const Color(0xFFF97316))),
+                    Expanded(
+                      child: _detailBox(
+                        'Check Out',
+                        checkOut,
+                        const Color(0xFFF97316),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
-                _detailRow('Inside Office', _formatMins(insideTime), const Color(0xFF22C55E)),
-                _detailRow('Outside', _formatMins(outsideTime), const Color(0xFFF97316)),
-                _detailRow('Offline/Idle', _formatMins(offlineTime), const Color(0xFF94A3B8)),
-                _detailRow('Extra Hours', _formatMins(extraHours), const Color(0xFF6366F1)),
+                _detailRow(
+                  'Inside Office',
+                  _formatMins(insideTime),
+                  const Color(0xFF22C55E),
+                ),
+                _detailRow(
+                  'Outside',
+                  _formatMins(outsideTime),
+                  const Color(0xFFF97316),
+                ),
+                _detailRow(
+                  'Offline/Idle',
+                  _formatMins(offlineTime),
+                  const Color(0xFF94A3B8),
+                ),
+                _detailRow(
+                  'Extra Hours',
+                  _formatMins(extraHours),
+                  const Color(0xFF6366F1),
+                ),
                 if (emp.distance != null) ...[
                   const Divider(height: 16),
-                  _detailRow('Distance from Office', '${emp.distance}m', Colors.grey.shade600),
+                  _detailRow(
+                    'Distance from Office',
+                    '${emp.distance}m',
+                    Colors.grey.shade600,
+                  ),
                 ],
               ],
             ),
@@ -398,9 +547,23 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -411,9 +574,24 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Expanded(child: Text(label,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500))),
-          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -425,24 +603,40 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
     String label;
     switch (status) {
       case 'present':
-        bg = const Color(0xFFDCFCE7); fg = const Color(0xFF16A34A); label = 'Present';
+        bg = const Color(0xFFDCFCE7);
+        fg = const Color(0xFF16A34A);
+        label = 'Present';
         break;
       case 'late':
-        bg = const Color(0xFFFEF9C3); fg = const Color(0xFFCA8A04); label = 'Late';
+        bg = const Color(0xFFFEF9C3);
+        fg = const Color(0xFFCA8A04);
+        label = 'Late';
         break;
       case 'outside':
-        bg = const Color(0xFFFFEDD5); fg = const Color(0xFFEA580C); label = 'Out of System';
+        bg = const Color(0xFFFFEDD5);
+        fg = const Color(0xFFEA580C);
+        label = 'Out of System';
         break;
       case 'offline':
-        bg = const Color(0xFFF1F5F9); fg = const Color(0xFF64748B); label = 'Offline';
+        bg = const Color(0xFFF1F5F9);
+        fg = const Color(0xFF64748B);
+        label = 'Offline';
         break;
       default:
-        bg = const Color(0xFFFEF9C3); fg = const Color(0xFFCA8A04); label = 'Pending';
+        bg = const Color(0xFFFEF9C3);
+        fg = const Color(0xFFCA8A04);
+        label = 'Pending';
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
+      ),
     );
   }
 

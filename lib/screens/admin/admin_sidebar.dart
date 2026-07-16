@@ -72,6 +72,8 @@ class AdminSidebar extends StatelessWidget {
               'Detailed Overview',
               isAdmin: true,
             ),
+            _buildNavItem(11, Icons.campaign_rounded, 'Announcements'),
+            _buildNavItem(12, Icons.devices_other_rounded, 'Assets'),
 
             const Spacer(),
 
@@ -157,6 +159,9 @@ class AdminSidebar extends StatelessWidget {
     String label, {
     bool isAdmin = false,
   }) {
+    if (isAdmin && userRole == 'manager') {
+      return const SizedBox.shrink();
+    }
     final bool isSelected = selectedIndex == index;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),

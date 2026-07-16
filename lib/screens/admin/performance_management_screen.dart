@@ -52,6 +52,7 @@ class _PerformanceManagementScreenState
   ) async {
     int rating = 3;
     final feedbackCtrl = TextEditingController();
+    bool isSaving = false;
 
     await showDialog(
       context: context,
@@ -78,7 +79,7 @@ class _PerformanceManagementScreenState
                 children: List.generate(
                   5,
                   (i) => IconButton(
-                    onPressed: () => setS(() => rating = i + 1),
+                    onPressed: isSaving ? null : () => setS(() => rating = i + 1),
                     icon: Icon(
                       i < rating
                           ? Icons.star_rounded
@@ -104,6 +105,7 @@ class _PerformanceManagementScreenState
               TextField(
                 controller: feedbackCtrl,
                 maxLines: 3,
+                enabled: !isSaving,
                 decoration: InputDecoration(
                   hintText: 'Enter feedback...',
                   contentPadding: const EdgeInsets.all(12),
@@ -124,34 +126,50 @@ class _PerformanceManagementScreenState
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: isSaving ? null : () => Navigator.pop(ctx),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6366F1),
               ),
-              onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                await FirebaseFirestore.instance.collection('appraisals').add({
-                  'userId': emp['id'],
-                  'userName': emp['name'],
-                  'rating': rating,
-                  'feedback': feedbackCtrl.text.trim(),
-                  'createdAt': DateTime.now().toIso8601String(),
-                });
-                if (ctx.mounted) Navigator.pop(ctx);
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Appraisal saved'),
-                    backgroundColor: Color(0xFF22C55E),
-                  ),
-                );
-              },
-              child: const Text(
-                'Save Appraisal',
-                style: TextStyle(color: Colors.white),
-              ),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      setS(() => isSaving = true);
+                      try {
+                        final messenger = ScaffoldMessenger.of(context);
+                        await FirebaseFirestore.instance.collection('appraisals').add({
+                          'userId': emp['id'],
+                          'userName': emp['name'],
+                          'rating': rating,
+                          'feedback': feedbackCtrl.text.trim(),
+                          'createdAt': DateTime.now().toIso8601String(),
+                        });
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Appraisal saved'),
+                            backgroundColor: Color(0xFF22C55E),
+                          ),
+                        );
+                      } catch (e) {
+                        setS(() => isSaving = false);
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Save Appraisal',
+                      style: TextStyle(color: Colors.white),
+                    ),
             ),
           ],
         ),

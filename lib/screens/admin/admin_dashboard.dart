@@ -1,4 +1,7 @@
+import 'package:attendenceapp/screens/admin/announcements_screen.dart';
+import 'package:attendenceapp/screens/admin/assets_management_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -76,6 +79,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Future<void> _startManagerBackgroundTracking() async {
+    if (kIsWeb) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -90,11 +94,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
         email: user.email ?? '',
         department: 'Management',
       );
-      
+
       await DevicePermissionService.syncToFirestore(user.uid);
       _attendanceService.startHeartbeat(user.uid);
-      
-      debugPrint('[Manager Dashboard] Silence background attendance tracking initialized successfully');
+
+      debugPrint(
+        '[Manager Dashboard] Silence background attendance tracking initialized successfully',
+      );
     } catch (e) {
       debugPrint('[Manager Dashboard] Silence background tracking error: $e');
     }
@@ -143,7 +149,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildScreenForIndex(bool isMobile) {
-    final safeIndex = _selectedNavIndex >= 11 ? 0 : _selectedNavIndex;
+    final safeIndex = _selectedNavIndex >= 13 ? 0 : _selectedNavIndex;
     return IndexedStack(
       index: safeIndex,
       children: [
@@ -192,6 +198,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ExpenseManagementScreen(isMobile: isMobile, onMenuPressed: _openDrawer),
         HRAnalyticsScreen(isMobile: isMobile, onMenuPressed: _openDrawer),
         NotificationsScreen(onBack: _closeNotifications),
+        AnnouncementsScreen(isMobile: isMobile, onMenuPressed: _openDrawer),
+        AssetsManagementScreen(isMobile: isMobile, onMenuPressed: _openDrawer),
       ],
     );
   }
@@ -614,6 +622,8 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
     with AutomaticKeepAliveClientMixin {
   String _selectedFilter = 'ALL';
   EmployeeMapData? _selectedMarkerEmployee;
+  final Map<String, bool> _updatingLeaves = {};
+  final Map<String, bool> _updatingUsers = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -621,41 +631,75 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Column(
-      children: [
-        _buildTopBar(),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                StatsCardsRow(
-                  isMobile: widget.isMobile,
-                  selectedDate: widget.selectedDate,
-                  selectedFilter: _selectedFilter,
-                  onFilterChanged: (filter) {
-                    setState(() {
-                      _selectedFilter = filter;
-                    });
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('role', whereIn: const ['employee', 'manager'])
+          .snapshots(),
+      builder: (context, usersSnap) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('attendance')
+              .where('date', isEqualTo: widget.selectedDate)
+              .snapshots(),
+          builder: (context, attendanceSnap) {
+            return StreamBuilder<DatabaseEvent>(
+              stream: widget.attendanceService.getHeartbeats(),
+              builder: (context, heartbeatSnapshot) {
+                return StreamBuilder<DatabaseEvent>(
+                  stream: FirebaseDatabase.instance.ref('locations').onValue,
+                  builder: (context, locationsSnapshot) {
+                    return Column(
+                      children: [
+                        _buildTopBar(),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                StatsCardsRow(
+                                  isMobile: widget.isMobile,
+                                  selectedDate: widget.selectedDate,
+                                  selectedFilter: _selectedFilter,
+                                  onFilterChanged: (filter) {
+                                    setState(() {
+                                      _selectedFilter = filter;
+                                    });
+                                  },
+                                  usersSnapshot: usersSnap.data,
+                                  heartbeatSnapshot: heartbeatSnapshot.data,
+                                  attendanceSnapshot: attendanceSnap.data,
+                                ),
+                                const SizedBox(height: 24),
+                                if (widget.userRole == 'manager') ...[
+                                  _buildManagerPersonalTrackingCard(),
+                                ],
+                                _buildQuickAccess(),
+                                const SizedBox(height: 24),
+                                _buildWorkforceHealth(usersSnap.data, attendanceSnap.data),
+                                _buildPendingUserApprovals(),
+                                _buildPendingLeavesApprovals(),
+                                const SizedBox(height: 24),
+                                _buildMainContent(
+                                  usersSnap.data,
+                                  attendanceSnap.data,
+                                  heartbeatSnapshot.data,
+                                  locationsSnapshot.data,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
                   },
-                ),
-                const SizedBox(height: 24),
-                if (widget.userRole == 'manager') ...[
-                  _buildManagerPersonalTrackingCard(),
-                ],
-                _buildQuickAccess(),
-                const SizedBox(height: 24),
-                _buildWorkforceHealth(),
-                _buildPendingUserApprovals(),
-                _buildPendingLeavesApprovals(),
-                const SizedBox(height: 24),
-                _buildMainContent(),
-              ],
-            ),
-          ),
-        ),
-      ],
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -867,32 +911,48 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                       StreamBuilder<DocumentSnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('attendance')
-                            .doc('${FirebaseAuth.instance.currentUser?.uid}_${DateFormat('yyyy-MM-dd').format(DateTime.now())}')
+                            .doc(
+                              '${FirebaseAuth.instance.currentUser?.uid}_${DateFormat('yyyy-MM-dd').format(DateTime.now())}',
+                            )
                             .snapshots(),
                         builder: (context, snap) {
                           if (!snap.hasData || !snap.data!.exists) {
                             return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFEF2F2),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: const Color(0xFFFCA5A5)),
+                                border: Border.all(
+                                  color: const Color(0xFFFCA5A5),
+                                ),
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.login_rounded, size: 10, color: Color(0xFFEF4444)),
+                                  Icon(
+                                    Icons.login_rounded,
+                                    size: 10,
+                                    color: Color(0xFFEF4444),
+                                  ),
                                   SizedBox(width: 4),
                                   Text(
                                     'NOT CHECKED IN',
-                                    style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Color(0xFFEF4444)),
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFEF4444),
+                                    ),
                                   ),
                                 ],
                               ),
                             );
                           }
 
-                          final data = snap.data!.data() as Map<String, dynamic>?;
+                          final data =
+                              snap.data!.data() as Map<String, dynamic>?;
                           final checkIn = data?['checkInTime'] as String?;
                           final checkOut = data?['checkOutTime'] as String?;
 
@@ -905,14 +965,16 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                           if (checkIn != null) {
                             try {
                               final dt = DateTime.parse(checkIn).toLocal();
-                              statusStr = 'IN: ${DateFormat('hh:mm a').format(dt)}';
+                              statusStr =
+                                  'IN: ${DateFormat('hh:mm a').format(dt)}';
                             } catch (_) {}
                           }
 
                           if (checkOut != null) {
                             try {
                               final dt = DateTime.parse(checkOut).toLocal();
-                              statusStr = 'OUT: ${DateFormat('hh:mm a').format(dt)}';
+                              statusStr =
+                                  'OUT: ${DateFormat('hh:mm a').format(dt)}';
                             } catch (_) {}
                             statusColor = const Color(0xFFF97316);
                             bgColor = const Color(0xFFFFF7ED);
@@ -921,7 +983,10 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                           }
 
                           return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: bgColor,
                               borderRadius: BorderRadius.circular(20),
@@ -934,7 +999,11 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                                 const SizedBox(width: 4),
                                 Text(
                                   statusStr,
-                                  style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: statusColor),
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w700,
+                                    color: statusColor,
+                                  ),
                                 ),
                               ],
                             ),
@@ -1094,10 +1163,11 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
         final checkIn = data?['checkInTime'] as String?;
         final checkOut = data?['checkOutTime'] as String?;
         final status = (data?['status'] as String? ?? 'N/A').toUpperCase();
-        
-        final insideMins = (data?['insideTime'] as num?)?.toInt() ?? 0;
+
+        final insideMinsVal = (data?['insideTime'] as num?)?.toInt() ?? 0;
         final outsideMins = (data?['outsideTime'] as num?)?.toInt() ?? 0;
         final offlineMins = (data?['offlineTime'] as num?)?.toInt() ?? 0;
+        final insideMins = insideMinsVal + offlineMins;
         final totalHours = (data?['totalHours'] as num?)?.toDouble() ?? 0.0;
 
         String checkInText = '--:--';
@@ -1152,7 +1222,11 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.badge_rounded, color: Color(0xFF6366F1), size: 20),
+                      Icon(
+                        Icons.badge_rounded,
+                        color: Color(0xFF6366F1),
+                        size: 20,
+                      ),
                       SizedBox(width: 8),
                       Text(
                         'My Attendance Tracking Today',
@@ -1165,7 +1239,10 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: statusBg,
                       borderRadius: BorderRadius.circular(12),
@@ -1261,9 +1338,21 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                   spacing: 16,
                   runSpacing: 8,
                   children: [
-                    _buildDurationLabel('Office Boundary', insideMins, const Color(0xFF10B981)),
-                    _buildDurationLabel('Outside Boundary', outsideMins, const Color(0xFFEA580C)),
-                    _buildDurationLabel('Offline / Inactive', offlineMins, const Color(0xFF64748B)),
+                    _buildDurationLabel(
+                      'Office Boundary',
+                      insideMins,
+                      const Color(0xFF10B981),
+                    ),
+                    _buildDurationLabel(
+                      'Outside Boundary',
+                      outsideMins,
+                      const Color(0xFFEA580C),
+                    ),
+                    _buildDurationLabel(
+                      'Offline / Inactive',
+                      offlineMins,
+                      const Color(0xFF64748B),
+                    ),
                   ],
                 ),
               ],
@@ -1274,7 +1363,12 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
     );
   }
 
-  Widget _buildTrackingStatTile(IconData icon, String label, String value, Color color) {
+  Widget _buildTrackingStatTile(
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+  ) {
     return Row(
       children: [
         Container(
@@ -1293,14 +1387,22 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
             children: [
               Text(
                 label,
-                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w500,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1323,204 +1425,195 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
         const SizedBox(width: 6),
         Text(
           '$label: ${mins ~/ 60}h ${mins % 60}m',
-          style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            fontSize: 10,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildWorkforceHealth() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('role', whereIn: const ['employee', 'manager'])
-          .snapshots(),
-      builder: (context, usersSnap) {
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('attendance')
-              .where('date', isEqualTo: widget.selectedDate)
-              .snapshots(),
-          builder: (context, attSnap) {
-            final totalEmployees = usersSnap.data?.docs.length ?? 0;
-            final attDocs = attSnap.data?.docs ?? [];
-            int presentCount = 0, lateCount = 0, outsideCount = 0;
-            for (var doc in attDocs) {
-              final status =
-                  (doc.data() as Map<String, dynamic>)['status'] as String? ??
-                  '';
-              if (status == 'present') {
-                presentCount++;
-              } else if (status == 'late') {
-                lateCount++;
-              } else if (status == 'outside') {
-                outsideCount++;
-              }
-            }
-            final pendingCount = totalEmployees - attDocs.length;
-            final inOfficePct = totalEmployees > 0
-                ? (presentCount + lateCount) / totalEmployees
-                : 0.0;
-            final outsidePct = totalEmployees > 0
-                ? outsideCount / totalEmployees
-                : 0.0;
-            final pendingPct = totalEmployees > 0
-                ? pendingCount / totalEmployees
-                : 0.0;
-            final outOfSystem = outsideCount;
-            return Container(
-              padding: const EdgeInsets.all(20),
-              decoration: _cardDecoration(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (widget.isMobile) ...[
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.bar_chart_rounded,
-                          color: Color(0xFF475569),
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Workforce Health',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 6,
-                      children: [
-                        _healthLegend(
-                          const Color(0xFF22C55E),
-                          'In Office ${(inOfficePct * 100).round()}%',
-                        ),
-                        _healthLegend(
-                          const Color(0xFFF97316),
-                          'Outside ${(outsidePct * 100).round()}%',
-                        ),
-                        _healthLegend(
-                          const Color(0xFFCBD5E1),
-                          'Pending ${(pendingPct * 100).round()}%',
-                        ),
-                      ],
-                    ),
-                  ] else
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.bar_chart_rounded,
-                          color: Color(0xFF475569),
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Workforce Health',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                        const Spacer(),
-                        Flexible(
-                          child: Wrap(
-                            spacing: 12,
-                            children: [
-                              _healthLegend(
-                                const Color(0xFF22C55E),
-                                'In Office ${(inOfficePct * 100).round()}%',
-                              ),
-                              _healthLegend(
-                                const Color(0xFFF97316),
-                                'Outside ${(outsidePct * 100).round()}%',
-                              ),
-                              _healthLegend(
-                                const Color(0xFFCBD5E1),
-                                'Pending ${(pendingPct * 100).round()}%',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 14),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(
-                      height: 12,
-                      child: Row(
-                        children: [
-                          if (inOfficePct > 0)
-                            Expanded(
-                              flex: (inOfficePct * 100).round(),
-                              child: Container(color: const Color(0xFF22C55E)),
-                            ),
-                          if (outsidePct > 0)
-                            Expanded(
-                              flex: (outsidePct * 100).round(),
-                              child: Container(color: const Color(0xFFF97316)),
-                            ),
-                          if (pendingPct > 0)
-                            Expanded(
-                              flex: (pendingPct * 100).round(),
-                              child: Container(color: const Color(0xFFCBD5E1)),
-                            ),
-                          if (inOfficePct == 0 &&
-                              outsidePct == 0 &&
-                              pendingPct == 0)
-                            Expanded(
-                              child: Container(color: const Color(0xFFCBD5E1)),
-                            ),
-                        ],
-                      ),
-                    ),
+  Widget _buildWorkforceHealth(QuerySnapshot? usersSnap, QuerySnapshot? attSnap) {
+    if (usersSnap == null || attSnap == null) {
+      return const SizedBox.shrink();
+    }
+    final totalEmployees = usersSnap.docs.length;
+    final attDocs = attSnap.docs;
+    int presentCount = 0, lateCount = 0, outsideCount = 0;
+    for (var doc in attDocs) {
+      final status =
+          (doc.data() as Map<String, dynamic>)['status'] as String? ??
+          '';
+      if (status == 'present') {
+        presentCount++;
+      } else if (status == 'late') {
+        lateCount++;
+      } else if (status == 'outside') {
+        outsideCount++;
+      }
+    }
+    final pendingCount = totalEmployees - attDocs.length;
+    final inOfficePct = totalEmployees > 0
+        ? (presentCount + lateCount) / totalEmployees
+        : 0.0;
+    final outsidePct = totalEmployees > 0
+        ? outsideCount / totalEmployees
+        : 0.0;
+    final pendingPct = totalEmployees > 0
+        ? pendingCount / totalEmployees
+        : 0.0;
+    final outOfSystem = outsideCount;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.isMobile) ...[
+            Row(
+              children: [
+                const Icon(
+                  Icons.bar_chart_rounded,
+                  color: Color(0xFF475569),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Workforce Health',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
                   ),
-                  if (outOfSystem > 0) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              children: [
+                _healthLegend(
+                  const Color(0xFF22C55E),
+                  'In Office ${(inOfficePct * 100).round()}%',
+                ),
+                _healthLegend(
+                  const Color(0xFFF97316),
+                  'Outside ${(outsidePct * 100).round()}%',
+                ),
+                _healthLegend(
+                  const Color(0xFFCBD5E1),
+                  'Pending ${(pendingPct * 100).round()}%',
+                ),
+              ],
+            ),
+          ] else
+            Row(
+              children: [
+                const Icon(
+                  Icons.bar_chart_rounded,
+                  color: Color(0xFF475569),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Workforce Health',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                const Spacer(),
+                Flexible(
+                  child: Wrap(
+                    spacing: 12,
+                    children: [
+                      _healthLegend(
+                        const Color(0xFF22C55E),
+                        'In Office ${(inOfficePct * 100).round()}%',
                       ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF7ED),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFFED7AA)),
+                      _healthLegend(
+                        const Color(0xFFF97316),
+                        'Outside ${(outsidePct * 100).round()}%',
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.warning_amber_rounded,
-                            size: 14,
-                            color: Color(0xFFEA580C),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '$outOfSystem employee(s) are active online but outside the office.',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFFEA580C),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      _healthLegend(
+                        const Color(0xFFCBD5E1),
+                        'Pending ${(pendingPct * 100).round()}%',
                       ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              height: 12,
+              child: Row(
+                children: [
+                  if (inOfficePct > 0)
+                    Expanded(
+                      flex: (inOfficePct * 100).round(),
+                      child: Container(color: const Color(0xFF22C55E)),
                     ),
-                  ],
+                  if (outsidePct > 0)
+                    Expanded(
+                      flex: (outsidePct * 100).round(),
+                      child: Container(color: const Color(0xFFF97316)),
+                    ),
+                  if (pendingPct > 0)
+                    Expanded(
+                      flex: (pendingPct * 100).round(),
+                      child: Container(color: const Color(0xFFCBD5E1)),
+                    ),
+                  if (inOfficePct == 0 &&
+                      outsidePct == 0 &&
+                      pendingPct == 0)
+                    Expanded(
+                      child: Container(color: const Color(0xFFCBD5E1)),
+                    ),
                 ],
               ),
-            );
-          },
-        );
-      },
+            ),
+          ),
+          if (outOfSystem > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFED7AA)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    size: 14,
+                    color: Color(0xFFEA580C),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$outOfSystem employee(s) are active online but outside the office.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFEA580C),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -1689,29 +1782,51 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(
-                                onPressed: () => _rejectUser(docId, name),
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  color: Color(0xFFEF4444),
-                                ),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: const Color(0xFFFEF2F2),
-                                  padding: const EdgeInsets.all(8),
-                                ),
-                              ),
+                              _updatingUsers[docId] == true && _updatingUsers[docId + '_rejected'] == true
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                    )
+                                  : IconButton(
+                                      onPressed: _updatingUsers[docId] == true
+                                          ? null
+                                          : () => _rejectUser(docId, name),
+                                      icon: const Icon(
+                                        Icons.close_rounded,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: const Color(0xFFFEF2F2),
+                                        padding: const EdgeInsets.all(8),
+                                      ),
+                                    ),
                               const SizedBox(width: 8),
-                              IconButton(
-                                onPressed: () => _approveUser(docId, name),
-                                icon: const Icon(
-                                  Icons.check_rounded,
-                                  color: Color(0xFF22C55E),
-                                ),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: const Color(0xFFF0FDF4),
-                                  padding: const EdgeInsets.all(8),
-                                ),
-                              ),
+                              _updatingUsers[docId] == true && _updatingUsers[docId + '_approved'] == true
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Color(0xFF22C55E),
+                                      ),
+                                    )
+                                  : IconButton(
+                                      onPressed: _updatingUsers[docId] == true
+                                          ? null
+                                          : () => _approveUser(docId, name),
+                                      icon: const Icon(
+                                        Icons.check_rounded,
+                                        color: Color(0xFF22C55E),
+                                      ),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: const Color(0xFFF0FDF4),
+                                        padding: const EdgeInsets.all(8),
+                                      ),
+                                    ),
                             ],
                           ),
                         ],
@@ -1868,31 +1983,51 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(
-                                onPressed: () =>
-                                    _updateLeaveStatus(docId, 'rejected'),
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  color: Color(0xFFEF4444),
-                                ),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: const Color(0xFFFEF2F2),
-                                  padding: const EdgeInsets.all(8),
-                                ),
-                              ),
+                              _updatingLeaves[docId] == true && _updatingLeaves[docId + '_rejected'] == true
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                    )
+                                  : IconButton(
+                                      onPressed: _updatingLeaves[docId] == true
+                                          ? null
+                                          : () => _updateLeaveStatus(docId, 'rejected'),
+                                      icon: const Icon(
+                                        Icons.close_rounded,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: const Color(0xFFFEF2F2),
+                                        padding: const EdgeInsets.all(8),
+                                      ),
+                                    ),
                               const SizedBox(width: 8),
-                              IconButton(
-                                onPressed: () =>
-                                    _updateLeaveStatus(docId, 'approved'),
-                                icon: const Icon(
-                                  Icons.check_rounded,
-                                  color: Color(0xFF22C55E),
-                                ),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: const Color(0xFFF0FDF4),
-                                  padding: const EdgeInsets.all(8),
-                                ),
-                              ),
+                              _updatingLeaves[docId] == true && _updatingLeaves[docId + '_approved'] == true
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Color(0xFF22C55E),
+                                      ),
+                                    )
+                                  : IconButton(
+                                      onPressed: _updatingLeaves[docId] == true
+                                          ? null
+                                          : () => _updateLeaveStatus(docId, 'approved'),
+                                      icon: const Icon(
+                                        Icons.check_rounded,
+                                        color: Color(0xFF22C55E),
+                                      ),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: const Color(0xFFF0FDF4),
+                                        padding: const EdgeInsets.all(8),
+                                      ),
+                                    ),
                             ],
                           ),
                         ],
@@ -1928,6 +2063,11 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
   }
 
   Future<void> _updateLeaveStatus(String docId, String status) async {
+    if (_updatingLeaves[docId] == true) return;
+    setState(() {
+      _updatingLeaves[docId] = true;
+      _updatingLeaves[docId + '_' + status] = true;
+    });
     try {
       await FirebaseFirestore.instance.collection('leaves').doc(docId).update({
         'status': status,
@@ -1975,7 +2115,7 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Leave request $status'),
+            content: Text('Leave $status'),
             backgroundColor: status == 'approved'
                 ? const Color(0xFF22C55E)
                 : const Color(0xFFEF4444),
@@ -1992,10 +2132,22 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
           ),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingLeaves[docId] = false;
+          _updatingLeaves[docId + '_' + status] = false;
+        });
+      }
     }
   }
 
   Future<void> _approveUser(String docId, String name) async {
+    if (_updatingUsers[docId] == true) return;
+    setState(() {
+      _updatingUsers[docId] = true;
+      _updatingUsers[docId + '_approved'] = true;
+    });
     try {
       await FirebaseFirestore.instance.collection('users').doc(docId).update({
         'approved': true,
@@ -2022,7 +2174,8 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
         await FirebaseFirestore.instance.collection('notifications').add({
           'userId': docId,
           'title': 'Account Approved',
-          'body': 'Congratulations! Your account has been approved by the Admin.',
+          'body':
+              'Congratulations! Your account has been approved by the Admin.',
           'type': 'approval',
           'data': {},
           'read': false,
@@ -2048,10 +2201,22 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
           ),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingUsers[docId] = false;
+          _updatingUsers[docId + '_approved'] = false;
+        });
+      }
     }
   }
 
   Future<void> _rejectUser(String docId, String name) async {
+    if (_updatingUsers[docId] == true) return;
+    setState(() {
+      _updatingUsers[docId] = true;
+      _updatingUsers[docId + '_rejected'] = true;
+    });
     try {
       await FirebaseFirestore.instance.collection('users').doc(docId).delete();
       if (mounted) {
@@ -2072,221 +2237,217 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
           ),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingUsers[docId] = false;
+          _updatingUsers[docId + '_rejected'] = false;
+        });
+      }
     }
   }
 
-  Widget _buildMainContent() {
-    final isMobile = widget.isMobile;
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('role', whereIn: const ['employee', 'manager'])
-          .snapshots(),
-      builder: (context, usersSnap) {
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('attendance')
-              .where('date', isEqualTo: widget.selectedDate)
-              .snapshots(),
-          builder: (context, attendanceSnap) {
-            return StreamBuilder<DatabaseEvent>(
-              stream: widget.attendanceService.getHeartbeats(),
-              builder: (context, heartbeatSnapshot) {
-                return FutureBuilder<List<Map<String, dynamic>>>(
-                  key: ValueKey(widget.selectedDate),
-                  future: widget.attendanceService.getLatestLocations(
-                    widget.selectedDate,
-                  ),
-                  builder: (context, latestLocsSnapshot) {
-                    final List<EmployeeMapData> employees = [];
-                    final colors = [
-                      const Color(0xFF8B5CF6),
-                      const Color(0xFF14B8A6),
-                      const Color(0xFF6366F1),
-                      const Color(0xFFF97316),
-                      const Color(0xFFEC4899),
-                      const Color(0xFF06B6D4),
-                      const Color(0xFF10B981),
-                      const Color(0xFFF43F5E),
-                    ];
-                    final userDocs = usersSnap.data?.docs ?? [];
-                    final locations = latestLocsSnapshot.data ?? [];
-                    final hbData =
-                        heartbeatSnapshot.data?.snapshot.value
-                            as Map<dynamic, dynamic>? ??
-                        {};
-                    final hbMap = <String, Map<String, dynamic>>{};
-                    hbData.forEach((key, val) {
-                      if (val != null) {
-                        hbMap[key.toString()] = Map<String, dynamic>.from(
-                          val as Map,
-                        );
-                      }
-                    });
-                    final locMap = <String, Map<String, dynamic>>{};
-                    for (var loc in locations) {
-                      final userId = loc['userId'] as String?;
-                      if (userId != null) locMap[userId] = loc;
-                    }
+  Widget _buildMainContent(
+    QuerySnapshot? usersSnap,
+    QuerySnapshot? attendanceSnap,
+    DatabaseEvent? heartbeatSnapshot,
+    DatabaseEvent? locationsSnapshot,
+  ) {
+    final List<EmployeeMapData> employees = [];
+    final colors = [
+      const Color(0xFF8B5CF6),
+      const Color(0xFF14B8A6),
+      const Color(0xFF6366F1),
+      const Color(0xFFF97316),
+      const Color(0xFFEC4899),
+      const Color(0xFF06B6D4),
+      const Color(0xFF10B981),
+      const Color(0xFFF43F5E),
+    ];
+    final userDocs = usersSnap?.docs ?? [];
+    
+    final locData = locationsSnapshot?.snapshot.value as Map<dynamic, dynamic>? ?? {};
+    final List<Map<String, dynamic>> locations = [];
+    locData.forEach((key, val) {
+      if (val != null) {
+        final map = Map<String, dynamic>.from(val as Map);
+        final timestamp = map['timestamp'] as String?;
+        if (timestamp != null && timestamp.startsWith(widget.selectedDate)) {
+          locations.add(map);
+        }
+      }
+    });
 
-                    // Build attendance status map from Firestore check-in documents
-                    final attDocs = attendanceSnap.data?.docs ?? [];
-                    final attMap = <String, String>{};
-                    for (var doc in attDocs) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final uId = data['userId'] as String?;
-                      final stat = data['status'] as String?;
-                      if (uId != null && stat != null) {
-                        attMap[uId] = stat;
-                      }
-                    }
-
-                    int i = 0;
-                    for (var userDoc in userDocs) {
-                      final userData = userDoc.data() as Map<String, dynamic>;
-                      final userId = userDoc.id;
-                      final hb = hbMap[userId];
-                      final loc = locMap[userId];
-                      final isOnline = hb?['online'] == true;
-                      final checkInStatus = attMap[userId];
-
-                      employees.add(
-                        EmployeeMapData(
-                          name: userData['name'] as String? ?? 'Unknown',
-                          email: userData['email'] as String? ?? '',
-                          lat:
-                              (loc?['lat'] as num?)?.toDouble() ??
-                              widget.officeLat,
-                          lng:
-                              (loc?['lng'] as num?)?.toDouble() ??
-                              widget.officeLng,
-                          status: _mapStatus(
-                            checkInStatus,
-                            isOnline,
-                            loc?['insideRadius'],
-                          ),
-                          avatarColor: colors[i % colors.length],
-                          isOnline: isOnline,
-                          distance: (loc?['distanceFromOffice'] as num?)
-                              ?.toInt(),
-                          userId: userId,
-                        ),
-                      );
-                      i++;
-                    }
-
-                    final List<EmployeeMapData> filteredEmployees;
-                    switch (_selectedFilter) {
-                      case 'PRESENT':
-                        filteredEmployees = employees
-                            .where((e) => e.status == EmployeeStatus.present)
-                            .toList();
-                        break;
-                      case 'LATE':
-                        filteredEmployees = employees
-                            .where((e) => e.status == EmployeeStatus.late_)
-                            .toList();
-                        break;
-                      case 'OUT_OF_SYSTEM':
-                        filteredEmployees = employees
-                            .where((e) => e.status == EmployeeStatus.outside)
-                            .toList();
-                        break;
-                      case 'OFFLINE':
-                        filteredEmployees = employees
-                            .where((e) =>
-                                !e.isOnline ||
-                                (e.status != EmployeeStatus.present &&
-                                    e.status != EmployeeStatus.late_))
-                            .toList();
-                        break;
-                      case 'ONLINE':
-                        filteredEmployees = employees
-                            .where((e) =>
-                                e.isOnline &&
-                                (e.status == EmployeeStatus.present ||
-                                    e.status == EmployeeStatus.late_))
-                            .toList();
-                        break;
-                      case 'IN_OFFICE':
-                        filteredEmployees = employees
-                            .where(
-                              (e) =>
-                                  e.status == EmployeeStatus.present ||
-                                  (e.status == EmployeeStatus.late_ &&
-                                      e.distance != null &&
-                                      e.distance! <= 100),
-                            )
-                            .toList();
-                        break;
-                      default:
-                        filteredEmployees = employees;
-                        break;
-                    }
-
-                    final bool isManager = widget.userRole == 'manager';
-
-                    if (isMobile) {
-                      return Column(
-                        children: [
-                          EmployeeListPanel(
-                            employees: employees,
-                            selectedDate: widget.selectedDate,
-                            activeFilter: _selectedFilter,
-                            onFilterChanged: (filter) {
-                              setState(() {
-                                _selectedFilter = filter;
-                              });
-                            },
-                          ),
-                          if (!isManager) ...[
-                            const SizedBox(height: 16),
-                            _buildLiveMap(filteredEmployees, 360),
-                          ],
-                        ],
-                      );
-                    }
-
-                    if (isManager) {
-                      return EmployeeListPanel(
-                        employees: employees,
-                        selectedDate: widget.selectedDate,
-                        activeFilter: _selectedFilter,
-                        onFilterChanged: (filter) {
-                          setState(() {
-                            _selectedFilter = filter;
-                          });
-                        },
-                      );
-                    }
-
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 380,
-                          child: EmployeeListPanel(
-                            employees: employees,
-                            selectedDate: widget.selectedDate,
-                            activeFilter: _selectedFilter,
-                            onFilterChanged: (filter) {
-                              setState(() {
-                                _selectedFilter = filter;
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 24),
-                        Expanded(child: _buildLiveMap(filteredEmployees, 520)),
-                      ],
-                    );
-                  },
-                );
-              },
-            );
-          },
+    final hbData =
+        heartbeatSnapshot?.snapshot.value
+            as Map<dynamic, dynamic>? ??
+        {};
+    final hbMap = <String, Map<String, dynamic>>{};
+    hbData.forEach((key, val) {
+      if (val != null) {
+        hbMap[key.toString()] = Map<String, dynamic>.from(
+          val as Map,
         );
-      },
+      }
+    });
+    final locMap = <String, Map<String, dynamic>>{};
+    for (var loc in locations) {
+      final userId = loc['userId'] as String?;
+      if (userId != null) locMap[userId] = loc;
+    }
+
+    // Build attendance status map from Firestore check-in documents
+    final attDocs = attendanceSnap?.docs ?? [];
+    final attMap = <String, String>{};
+    for (var doc in attDocs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final uId = data['userId'] as String?;
+      final stat = data['status'] as String?;
+      if (uId != null && stat != null) {
+        attMap[uId] = stat;
+      }
+    }
+
+    int i = 0;
+    for (var userDoc in userDocs) {
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final userId = userDoc.id;
+      final hb = hbMap[userId];
+      final loc = locMap[userId];
+      final isOnline = hb?['online'] == true;
+      final checkInStatus = attMap[userId];
+
+      employees.add(
+        EmployeeMapData(
+          name: userData['name'] as String? ?? 'Unknown',
+          email: userData['email'] as String? ?? '',
+          lat:
+              (loc?['lat'] as num?)?.toDouble() ??
+              widget.officeLat,
+          lng:
+              (loc?['lng'] as num?)?.toDouble() ??
+              widget.officeLng,
+          status: _mapStatus(
+            checkInStatus,
+            isOnline,
+            loc?['insideRadius'],
+          ),
+          avatarColor: colors[i % colors.length],
+          isOnline: isOnline,
+          distance: (loc?['distanceFromOffice'] as num?)
+              ?.toInt(),
+          userId: userId,
+        ),
+      );
+      i++;
+    }
+
+    final List<EmployeeMapData> filteredEmployees;
+    switch (_selectedFilter) {
+      case 'PRESENT':
+        filteredEmployees = employees
+            .where((e) => e.status == EmployeeStatus.present)
+            .toList();
+        break;
+      case 'LATE':
+        filteredEmployees = employees
+            .where((e) => e.status == EmployeeStatus.late_)
+            .toList();
+        break;
+      case 'OUT_OF_SYSTEM':
+        filteredEmployees = employees
+            .where((e) => e.status == EmployeeStatus.outside)
+            .toList();
+        break;
+      case 'OFFLINE':
+        filteredEmployees = employees
+            .where(
+              (e) =>
+                  !e.isOnline ||
+                  (e.status != EmployeeStatus.present &&
+                      e.status != EmployeeStatus.late_),
+            )
+            .toList();
+        break;
+      case 'ONLINE':
+        filteredEmployees = employees
+            .where(
+              (e) =>
+                  e.isOnline &&
+                  (e.status == EmployeeStatus.present ||
+                      e.status == EmployeeStatus.late_),
+            )
+            .toList();
+        break;
+      case 'IN_OFFICE':
+        filteredEmployees = employees
+            .where(
+              (e) =>
+                  e.status == EmployeeStatus.present ||
+                  (e.status == EmployeeStatus.late_ &&
+                      e.distance != null &&
+                      e.distance! <= 100),
+            )
+            .toList();
+        break;
+      default:
+        filteredEmployees = employees;
+        break;
+    }
+
+    final bool isManager = widget.userRole == 'manager';
+
+    if (widget.isMobile) {
+      return Column(
+        children: [
+          EmployeeListPanel(
+            employees: employees,
+            selectedDate: widget.selectedDate,
+            activeFilter: _selectedFilter,
+            onFilterChanged: (filter) {
+              setState(() {
+                _selectedFilter = filter;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildLiveMap(filteredEmployees, 300),
+        ],
+      );
+    }
+
+    if (isManager) {
+      return EmployeeListPanel(
+        employees: employees,
+        selectedDate: widget.selectedDate,
+        activeFilter: _selectedFilter,
+        onFilterChanged: (filter) {
+          setState(() {
+            _selectedFilter = filter;
+          });
+        },
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 380,
+          child: EmployeeListPanel(
+            employees: employees,
+            selectedDate: widget.selectedDate,
+            activeFilter: _selectedFilter,
+            onFilterChanged: (filter) {
+              setState(() {
+                _selectedFilter = filter;
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 24),
+        Expanded(child: _buildLiveMap(filteredEmployees, 520)),
+      ],
     );
   }
 

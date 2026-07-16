@@ -76,7 +76,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     }
   }
 
-  Future<void> _applyLeave() async {
+  Future<void> _applyLeave(StateSetter setModalState) async {
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,7 +102,10 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       }
     }
 
-    if (mounted) setState(() => _isApplying = true);
+    if (mounted) {
+      setState(() => _isApplying = true);
+      setModalState(() {});
+    }
     try {
       await FirebaseFirestore.instance.collection('leaves').add({
         'userId': user!.uid,
@@ -178,7 +181,10 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isApplying = false);
+      if (mounted) {
+        setState(() => _isApplying = false);
+        setModalState(() {});
+      }
     }
   }
 
@@ -253,6 +259,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
                             initialValue: _selectedLeaveType,
+                            onChanged: _isApplying ? null : (v) => setModalState(() => _selectedLeaveType = v!),
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: const Color(0xFFF8FAFC),
@@ -275,10 +282,6 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                 child: Text(type['label'] as String),
                               );
                             }).toList(),
-                            onChanged: (value) {
-                              setModalState(() => _selectedLeaveType = value!);
-                              setState(() => _selectedLeaveType = value!);
-                            },
                           ),
                           const SizedBox(height: 20),
 
@@ -402,7 +405,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       InkWell(
-                                        onTap: () async {
+                                        onTap: _isApplying ? null : () async {
                                           final date = await showDatePicker(
                                             context: context,
                                             initialDate: DateTime.now(),
@@ -455,7 +458,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       InkWell(
-                                        onTap: () async {
+                                        onTap: _isApplying ? null : () async {
                                           final date = await showDatePicker(
                                             context: context,
                                             initialDate: _startDate ?? DateTime.now(),
@@ -511,6 +514,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                           TextFormField(
                             controller: _reasonController,
                             maxLines: 4,
+                            enabled: !_isApplying,
                             decoration: InputDecoration(
                               hintText: 'Briefly explain the reason for leave...',
                               filled: true,
@@ -601,7 +605,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                       Expanded(
                         flex: 2,
                         child: ElevatedButton(
-                          onPressed: _isApplying ? null : _applyLeave,
+                          onPressed: _isApplying ? null : () => _applyLeave(setModalState),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF6366F1),
                             padding: const EdgeInsets.symmetric(vertical: 16),

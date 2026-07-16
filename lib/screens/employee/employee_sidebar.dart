@@ -79,6 +79,8 @@ class EmployeeSidebar extends StatelessWidget {
               'My Documents',
             ),
             _buildNavItem(context, 8, Icons.person_rounded, 'My Profile'),
+            _buildNavItem(context, 9, Icons.campaign_rounded, 'Announcements'),
+            _buildNavItem(context, 10, Icons.devices_other_rounded, 'My Assets'),
 
             const Spacer(),
 

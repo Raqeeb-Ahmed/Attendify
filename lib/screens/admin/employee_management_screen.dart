@@ -21,6 +21,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   String _searchQuery = '';
   String _filterDept = 'All';
   bool _isSaving = false;
+  final Map<String, bool> _processingDocs = {};
 
   final List<String> _departments = [
     'All',
@@ -488,76 +489,128 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               ),
             ),
             if (!approved) ...[
-              IconButton(
-                onPressed: () async {
-                  await FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(docId)
-                      .delete();
-                  if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(
-                        content: Text('$name registration rejected & deleted!'),
-                        backgroundColor: const Color(0xFFEF4444),
-                        behavior: SnackBarBehavior.floating,
+              _processingDocs[docId] == true && _processingDocs[docId + '_rejected'] == true
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFFEF4444),
                       ),
-                    );
-                  }
-                },
-                 icon: const Icon(
-                  Icons.cancel_rounded,
-                  color: Color(0xFFEF4444),
-                  size: 24,
-                ),
-              ),
+                    )
+                  : IconButton(
+                      onPressed: _processingDocs[docId] == true
+                          ? null
+                          : () async {
+                              setState(() {
+                                _processingDocs[docId] = true;
+                                _processingDocs[docId + '_rejected'] = true;
+                              });
+                              try {
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(docId)
+                                    .delete();
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                      content: Text('$name registration rejected & deleted!'),
+                                      backgroundColor: const Color(0xFFEF4444),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                debugPrint('Error rejecting employee: $e');
+                              } finally {
+                                if (mounted) {
+                                  setState(() {
+                                    _processingDocs[docId] = false;
+                                    _processingDocs[docId + '_rejected'] = false;
+                                  });
+                                }
+                              }
+                            },
+                      icon: const Icon(
+                        Icons.cancel_rounded,
+                        color: Color(0xFFEF4444),
+                        size: 24,
+                      ),
+                    ),
               const SizedBox(width: 6),
-              IconButton(
-                onPressed: () async {
-                  await FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(docId)
-                      .update({'approved': true});
-
-                  // Send approval notification
-                  final userSnap = await FirebaseFirestore.instance.collection('users').doc(docId).get();
-                  if (userSnap.exists) {
-                    final userData = userSnap.data();
-                    final tokens = List<String>.from(userData?['fcmTokens'] ?? []);
-                    if (tokens.isNotEmpty) {
-                      await PushNotificationService.instance.sendPushNotification(
-                        recipientTokens: tokens,
-                        title: 'Account Approved',
-                        body: 'Congratulations! Your account has been approved by the Admin.',
-                      );
-                    }
-                  }
-
-                  await FirebaseFirestore.instance.collection('notifications').add({
-                    'userId': docId,
-                    'title': 'Account Approved',
-                    'body': 'Congratulations! Your account has been approved by the Admin.',
-                    'type': 'approval',
-                    'data': {},
-                    'read': false,
-                    'createdAt': DateTime.now().toIso8601String(),
-                  });
-
-                  if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(
-                        content: Text('$name approved successfully!'),
-                        backgroundColor: const Color(0xFF22C55E),
-                        behavior: SnackBarBehavior.floating,
+              _processingDocs[docId] == true && _processingDocs[docId + '_approved'] == true
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF22C55E),
                       ),
-                    );
-                  }
-                },
-                icon: const Icon(
-                  Icons.check_circle_rounded,
-                  color: Color(0xFF22C55E),
-                  size: 24,
-                ),
-              ),
+                    )
+                  : IconButton(
+                      onPressed: _processingDocs[docId] == true
+                          ? null
+                          : () async {
+                              setState(() {
+                                _processingDocs[docId] = true;
+                                _processingDocs[docId + '_approved'] = true;
+                              });
+                              try {
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(docId)
+                                    .update({'approved': true});
+
+                                // Send approval notification
+                                final userSnap = await FirebaseFirestore.instance.collection('users').doc(docId).get();
+                                if (userSnap.exists) {
+                                  final userData = userSnap.data();
+                                  final tokens = List<String>.from(userData?['fcmTokens'] ?? []);
+                                  if (tokens.isNotEmpty) {
+                                    await PushNotificationService.instance.sendPushNotification(
+                                      recipientTokens: tokens,
+                                      title: 'Account Approved',
+                                      body: 'Congratulations! Your account has been approved by the Admin.',
+                                    );
+                                  }
+                                }
+
+                                await FirebaseFirestore.instance.collection('notifications').add({
+                                  'userId': docId,
+                                  'title': 'Account Approved',
+                                  'body': 'Congratulations! Your account has been approved by the Admin.',
+                                  'type': 'approval',
+                                  'data': {},
+                                  'read': false,
+                                  'createdAt': DateTime.now().toIso8601String(),
+                                });
+
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                      content: Text('$name approved successfully!'),
+                                      backgroundColor: const Color(0xFF22C55E),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                debugPrint('Error approving employee: $e');
+                              } finally {
+                                if (mounted) {
+                                  setState(() {
+                                    _processingDocs[docId] = false;
+                                    _processingDocs[docId + '_approved'] = false;
+                                  });
+                                }
+                              }
+                            },
+                      icon: const Icon(
+                        Icons.check_circle_rounded,
+                        color: Color(0xFF22C55E),
+                        size: 24,
+                      ),
+                    ),
               const SizedBox(width: 8),
             ],
             IconButton(

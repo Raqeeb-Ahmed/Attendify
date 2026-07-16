@@ -7,6 +7,7 @@ import '../utils/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import '../utils/firebase_exception_handler.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 /// Unified Attendance Service - Matches Web App Schema
 /// Office hours: 9:45 AM - 5:45 PM
@@ -19,8 +20,8 @@ class AttendanceService {
   double get officeLng => AppConfig.officeLng;
   String get officeIP => AppConfig.officeIP;
   static const int radiusMeters = 100;
-  static const int officeStartMinutes = 9 * 60 + 45; // 9:45 AM
-  static const int officeEndMinutes = 17 * 60 + 45; // 5:45 PM
+  static const int officeStartMinutes = 9 * 60; // 9:00 AM
+  static const int officeEndMinutes = 18 * 60; // 6:00 PM
 
   // Intervals
   static const Duration heartbeatInterval = Duration(seconds: 60);
@@ -36,12 +37,21 @@ class AttendanceService {
   static const int autoCheckoutMinute = 0;
 
   // ── Haversine Formula ──
-  double getDistanceFromLatLonInM(double lat1, double lon1, double lat2, double lon2) {
+  double getDistanceFromLatLonInM(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
     const R = 6371e3;
     final dLat = (lat2 - lat1) * (pi / 180);
     final dLon = (lon2 - lon1) * (pi / 180);
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1 * (pi / 180)) * cos(lat2 * (pi / 180)) * sin(dLon / 2) * sin(dLon / 2);
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * (pi / 180)) *
+            cos(lat2 * (pi / 180)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return R * c;
   }
@@ -60,7 +70,10 @@ class AttendanceService {
   Future<Map<String, dynamic>?> fetchTodayAttendance(String userId) async {
     try {
       final attendanceId = getTodayAttendanceId(userId);
-      final docSnap = await _db.collection('attendance').doc(attendanceId).get();
+      final docSnap = await _db
+          .collection('attendance')
+          .doc(attendanceId)
+          .get();
       if (docSnap.exists) {
         return {'id': docSnap.id, ...docSnap.data()!};
       }
@@ -71,7 +84,12 @@ class AttendanceService {
   }
 
   // ── Check In ──
-  Future<Map<String, dynamic>?> checkIn(String userId, String userName, String? department, String email) async {
+  Future<Map<String, dynamic>?> checkIn(
+    String userId,
+    String userName,
+    String? department,
+    String email,
+  ) async {
     try {
       final attendanceId = getTodayAttendanceId(userId);
       final today = _formatDate(DateTime.now());
@@ -84,7 +102,9 @@ class AttendanceService {
       // Fetch user's IP
       String userIp = '';
       try {
-        final response = await http.get(Uri.parse('https://api.ipify.org?format=json'));
+        final response = await http.get(
+          Uri.parse('https://api.ipify.org?format=json'),
+        );
         if (response.statusCode == 200) {
           userIp = _parseIpResponse(response.body);
         }
@@ -104,7 +124,9 @@ class AttendanceService {
         }
         if (permission != LocationPermission.deniedForever) {
           position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+            ),
           );
           lat = position.latitude;
           lng = position.longitude;
@@ -210,7 +232,6 @@ class AttendanceService {
     });
   }
 
-  
   String _parseIpResponse(String body) {
     try {
       final start = body.indexOf('"ip":"') + 6;
@@ -235,7 +256,10 @@ class AttendanceService {
 
       final nowIso = DateTime.now().toIso8601String();
       final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
-      final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
+      final insideOfficeMs =
+          ((attData['insideTime'] ?? 0) + (attData['offlineTime'] ?? 0)) *
+          60 *
+          1000;
 
       await docRef.update({
         'checkOutTime': nowIso,
@@ -244,6 +268,18 @@ class AttendanceService {
         'totalHours': totalHours,
         'insideOfficeTime': insideOfficeMs,
       });
+
+      // Clear local tracking cache for today
+      try {
+        await FlutterForegroundTask.saveData(
+          key: 'attendance_last_sync_$attendanceId',
+          value: '',
+        );
+        await FlutterForegroundTask.saveData(
+          key: 'attendance_last_status_$attendanceId',
+          value: '',
+        );
+      } catch (_) {}
 
       // Mark presence offline in RTDB
       try {
@@ -255,7 +291,7 @@ class AttendanceService {
 
       // Note: Location tracking continues even after check-out for continuous monitoring
       // Only heartbeat is stopped, location tracking keeps running via foreground service
-      
+
       return fetchTodayAttendance(userId);
     } catch (e) {
       throw AppException(getFirebaseErrorMessage(e));
@@ -276,10 +312,15 @@ class AttendanceService {
       if (data['checkOutTime'] == null && data['sessionStatus'] == 'active') {
         final lastActive = data['lastActive'];
         final closeTime = lastActive != null
-            ? DateTime.parse(lastActive).add(staleSessionGrace).toIso8601String()
+            ? DateTime.parse(
+                lastActive,
+              ).add(staleSessionGrace).toIso8601String()
             : data['checkInTime'];
         final totalHours = _computeTotalHours(data['checkInTime'], closeTime);
-        final insideOfficeMs = (data['insideTime'] ?? 0) * 60 * 1000;
+        final insideOfficeMs =
+            ((data['insideTime'] ?? 0) + (data['offlineTime'] ?? 0)) *
+            60 *
+            1000;
 
         await docRef.update({
           'checkOutTime': closeTime,
@@ -293,7 +334,9 @@ class AttendanceService {
 
   double _computeTotalHours(String? checkInIso, String? checkOutIso) {
     if (checkInIso == null || checkOutIso == null) return 0.0;
-    final diffMs = DateTime.parse(checkOutIso).difference(DateTime.parse(checkInIso)).inMilliseconds;
+    final diffMs = DateTime.parse(
+      checkOutIso,
+    ).difference(DateTime.parse(checkInIso)).inMilliseconds;
     return double.parse((diffMs / (1000 * 60 * 60)).toStringAsFixed(2));
   }
 
@@ -302,7 +345,10 @@ class AttendanceService {
     if (_heartbeatTimer != null) return;
 
     _sendHeartbeat(userId);
-    _heartbeatTimer = Timer.periodic(heartbeatInterval, (_) => _sendHeartbeat(userId));
+    _heartbeatTimer = Timer.periodic(
+      heartbeatInterval,
+      (_) => _sendHeartbeat(userId),
+    );
 
     // Setup RTDB presence
     _setupPresence(userId);
@@ -330,17 +376,20 @@ class AttendanceService {
 
       connectedRef.onValue.listen((event) {
         if (event.snapshot.value == true) {
-          presenceRef.onDisconnect().set({
-            'userId': userId,
-            'online': false,
-            'lastSeen': DateTime.now().toIso8601String(),
-          }).then((_) {
-            presenceRef.set({
-              'userId': userId,
-              'online': true,
-              'lastSeen': DateTime.now().toIso8601String(),
-            });
-          });
+          presenceRef
+              .onDisconnect()
+              .set({
+                'userId': userId,
+                'online': false,
+                'lastSeen': DateTime.now().toIso8601String(),
+              })
+              .then((_) {
+                presenceRef.set({
+                  'userId': userId,
+                  'online': true,
+                  'lastSeen': DateTime.now().toIso8601String(),
+                });
+              });
         }
       });
     } catch (e) {
@@ -375,10 +424,18 @@ class AttendanceService {
     _autoCheckoutTimer?.cancel();
 
     final now = DateTime.now();
-    final todayCheckout = DateTime(now.year, now.month, now.day, autoCheckoutHour, autoCheckoutMinute);
+    final todayCheckout = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      autoCheckoutHour,
+      autoCheckoutMinute,
+    );
 
     // If already past 6 PM today, run immediately
-    final delay = todayCheckout.isAfter(now) ? todayCheckout.difference(now) : Duration.zero;
+    final delay = todayCheckout.isAfter(now)
+        ? todayCheckout.difference(now)
+        : Duration.zero;
 
     debugPrint('[AutoCheckout] Scheduled in ${delay.inMinutes} minutes');
 
@@ -409,9 +466,14 @@ class AttendanceService {
         if (attData['checkOutTime'] != null) return; // Already checked out
 
         final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
-        final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
+        final insideOfficeMs =
+            ((attData['insideTime'] ?? 0) + (attData['offlineTime'] ?? 0)) *
+            60 *
+            1000;
         final checkoutMins = now.hour * 60 + now.minute;
-        final overtimeMins = checkoutMins > officeEndMinutes ? checkoutMins - officeEndMinutes : 0;
+        final overtimeMins = checkoutMins > officeEndMinutes
+            ? checkoutMins - officeEndMinutes
+            : 0;
 
         tx.update(docRef, {
           'checkOutTime': nowIso,
@@ -449,7 +511,10 @@ class AttendanceService {
     if (_locationTimer != null) return;
 
     _sendLocation(userId);
-    _locationTimer = Timer.periodic(locationInterval, (_) => _sendLocation(userId));
+    _locationTimer = Timer.periodic(
+      locationInterval,
+      (_) => _sendLocation(userId),
+    );
   }
 
   void stopLocationTracking() {
@@ -469,7 +534,9 @@ class AttendanceService {
       if (permission == LocationPermission.deniedForever) return;
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       final latitude = position.latitude;
@@ -477,14 +544,24 @@ class AttendanceService {
 
       // Skip if position hasn't changed significantly (< 5m)
       if (_lastLat != null && _lastLng != null) {
-        final distance = getDistanceFromLatLonInM(_lastLat!, _lastLng!, latitude, longitude);
+        final distance = getDistanceFromLatLonInM(
+          _lastLat!,
+          _lastLng!,
+          latitude,
+          longitude,
+        );
         if (distance < 5) return;
       }
 
       _lastLat = latitude;
       _lastLng = longitude;
 
-      final distFromOffice = getDistanceFromLatLonInM(officeLat, officeLng, latitude, longitude);
+      final distFromOffice = getDistanceFromLatLonInM(
+        officeLat,
+        officeLng,
+        latitude,
+        longitude,
+      );
       final isInside = distFromOffice <= radiusMeters;
       final now = DateTime.now();
       final nowIso = now.toIso8601String();
@@ -513,8 +590,22 @@ class AttendanceService {
   /// [overrideAttendanceDate] – optional date string (yyyy-MM-dd) to target
   /// a specific day's attendance document (used when replaying cached offline
   /// locations that may belong to a previous day).
-  Future<void> updateTimeTracking(String userId, DateTime now, bool isInside, String nowIso, {String? overrideAttendanceDate}) async {
-    return _updateTimeTrackingInternal(userId, now, isInside, nowIso, overrideAttendanceDate: overrideAttendanceDate);
+  Future<void> updateTimeTracking(
+    String userId,
+    DateTime now,
+    bool isInside,
+    String nowIso, {
+    String? overrideAttendanceDate,
+    bool forceWrite = false,
+  }) async {
+    return _updateTimeTrackingInternal(
+      userId,
+      now,
+      isInside,
+      nowIso,
+      overrideAttendanceDate: overrideAttendanceDate,
+      forceWrite: forceWrite,
+    );
   }
 
   /// ─── Centralised Time-Tracking State Machine ─────────────────────────────
@@ -533,7 +624,14 @@ class AttendanceService {
   ///                  the geofence AFTER 5:45 PM, or when they remain inside
   ///                  the geofence AFTER checking out.
   /// • offlineTime  – tracking gaps ≥ 20 minutes (unified threshold).
-  Future<void> _updateTimeTrackingInternal(String userId, DateTime now, bool isInside, String nowIso, {String? overrideAttendanceDate}) async {
+  Future<void> _updateTimeTrackingInternal(
+    String userId,
+    DateTime now,
+    bool isInside,
+    String nowIso, {
+    String? overrideAttendanceDate,
+    bool forceWrite = false,
+  }) async {
     // Resolve the correct attendance document
     final String attendanceId;
 
@@ -541,6 +639,57 @@ class AttendanceService {
       attendanceId = '${userId}_$overrideAttendanceDate';
     } else {
       attendanceId = getTodayAttendanceId(userId);
+    }
+
+    // Throttling logic to save Firestore read/write quota
+    bool shouldWrite = false;
+    final currentStatus = isInside ? 'present' : 'outside';
+
+    try {
+      final lastSyncStr = await FlutterForegroundTask.getData<String>(
+        key: 'attendance_last_sync_$attendanceId',
+      );
+      final lastStatus = await FlutterForegroundTask.getData<String>(
+        key: 'attendance_last_status_$attendanceId',
+      );
+
+      if (lastSyncStr == null ||
+          lastSyncStr.isEmpty ||
+          lastStatus == null ||
+          lastStatus.isEmpty ||
+          forceWrite) {
+        shouldWrite = true;
+      } else {
+        final lastSync = DateTime.parse(lastSyncStr);
+        final elapsedMins = now.difference(lastSync).inMinutes;
+
+        if (currentStatus != lastStatus) {
+          shouldWrite = true; // geofence status transition
+        } else if (elapsedMins >= 5) {
+          shouldWrite = true; // 5-minute timeout boundary reached
+        }
+      }
+
+      if (shouldWrite) {
+        await FlutterForegroundTask.saveData(
+          key: 'attendance_last_sync_$attendanceId',
+          value: now.toIso8601String(),
+        );
+        await FlutterForegroundTask.saveData(
+          key: 'attendance_last_status_$attendanceId',
+          value: currentStatus,
+        );
+      }
+    } catch (e) {
+      debugPrint('[AttendanceService] Storage read error: $e');
+      shouldWrite = true; // Fallback to writing in case of errors
+    }
+
+    if (!shouldWrite) {
+      debugPrint(
+        '[AttendanceService] Quota Saved: Throttling Firestore update for $userId',
+      );
+      return;
     }
 
     final attRef = _db.collection('attendance').doc(attendanceId);
@@ -551,7 +700,6 @@ class AttendanceService {
     final attData = attSnap.data()!;
     // If there is no checkInTime yet, nothing to track against.
     if (attData['checkInTime'] == null) return;
-
 
     final alreadyCheckedOut = attData['checkOutTime'] != null;
     final currentMinutes = now.hour * 60 + now.minute;
@@ -571,46 +719,97 @@ class AttendanceService {
       final diffMins = now.difference(lastDate).inMinutes;
 
       debugPrint("Diff Minutes : $diffMins");
-
       debugPrint("Last Active : ${attData['lastActive']}");
       debugPrint("Now : $nowIso");
       debugPrint("Difference : $diffMins");
 
-      if (diffMins > 0 && diffMins < 20) {
-        // ── Active tracking interval (< 20 min gap) ───────────────────────
-        if (isInside) {
-          if (alreadyCheckedOut || currentMinutes > officeEndMinutes) {
-            // Inside geofence + (checked out OR after 5:45 PM) → overtime
-            updates['extraHours'] = (attData['extraHours'] ?? 0) + diffMins;
+      if (diffMins > 0) {
+        // Construct office boundary dates for the segment's day
+        final dayStart = DateTime(
+          lastDate.year,
+          lastDate.month,
+          lastDate.day,
+          9,
+          0,
+        );
+        final dayEnd = DateTime(
+          lastDate.year,
+          lastDate.month,
+          lastDate.day,
+          18,
+          0,
+        );
+
+        // Segment's overlap with standard office hours (9:45 AM to 5:45 PM)
+        final officeStartOverlap = lastDate.isAfter(dayStart)
+            ? lastDate
+            : dayStart;
+        final officeEndOverlap = now.isBefore(dayEnd) ? now : dayEnd;
+        final officeMins = officeEndOverlap.isAfter(officeStartOverlap)
+            ? officeEndOverlap.difference(officeStartOverlap).inMinutes
+            : 0;
+
+        // Segment's overlap with overtime hours (after 5:45 PM)
+        final overtimeStartOverlap = lastDate.isAfter(dayEnd)
+            ? lastDate
+            : dayEnd;
+        final overtimeEndOverlap = now;
+        final overtimeMins = overtimeEndOverlap.isAfter(overtimeStartOverlap)
+            ? overtimeEndOverlap.difference(overtimeStartOverlap).inMinutes
+            : 0;
+
+        if (diffMins < 20) {
+          // ── Active tracking interval (< 20 min gap) ───────────────────────
+          final wasInside =
+              attData['currentStatus'] == 'present' ||
+              attData['atOffice'] == true ||
+              (attData['currentStatus'] == null && isInside);
+
+          if (wasInside) {
+            if (officeMins > 0) {
+              updates['insideTime'] = (attData['insideTime'] ?? 0) + officeMins;
+            }
+            if (overtimeMins > 0) {
+              updates['extraHours'] =
+                  (attData['extraHours'] ?? 0) + overtimeMins;
+            }
           } else {
-            // Inside geofence during or before office hours → insideTime
-            // This intentionally includes early arrivals (before 9:45 AM)
-            updates['insideTime'] = (attData['insideTime'] ?? 0) + diffMins;
+            // Outside geofence
+            if (officeMins > 0 && !alreadyCheckedOut) {
+              updates['outsideTime'] =
+                  (attData['outsideTime'] ?? 0) + officeMins;
+            }
           }
         } else {
-          // Outside geofence
-          if (!alreadyCheckedOut && currentMinutes <= officeEndMinutes) {
-            // Outside during active session within work hours → outsideTime
-            updates['outsideTime'] = (attData['outsideTime'] ?? 0) + diffMins;
+          // ── Offline gap (≥ 20 minutes) ─────────────────────────────────────
+          // Only count the offline gap that fell within office hours
+          if (officeMins > 0) {
+            updates['offlineTime'] = (attData['offlineTime'] ?? 0) + officeMins;
+            // Also add offline minutes to insideTime as requested (treated as inside office while checked in)
+            updates['insideTime'] = (attData['insideTime'] ?? 0) + officeMins;
           }
-          // Outside after checkout or after 5:45 PM → not counted at all
         }
-      } else if (diffMins >= 20) {
-        // ── Offline gap (≥ 20 minutes) ─────────────────────────────────────
-        updates['offlineTime'] = (attData['offlineTime'] ?? 0) + diffMins;
       }
-      // diffMins == 0 → duplicate timestamp, skip silently
     }
 
     // ── Recalculate derived fields ──────────────────────────────────────────
-    final newInsideTime = updates['insideTime'] ?? attData['insideTime'] ?? 0;
-    updates['insideOfficeTime'] = (newInsideTime as int) * 60 * 1000; // ms
+    final currentInside = updates['insideTime'] ?? attData['insideTime'] ?? 0;
+    final currentOffline =
+        updates['offlineTime'] ?? attData['offlineTime'] ?? 0;
+    updates['insideOfficeTime'] =
+        (currentInside + currentOffline) * 60 * 1000; // ms
 
     // totalHours: freeze after checkout — use checkOutTime, not nowIso
     if (alreadyCheckedOut) {
-      updates['totalHours'] = _computeTotalHours(attData['checkInTime'], attData['checkOutTime']);
+      updates['totalHours'] = _computeTotalHours(
+        attData['checkInTime'],
+        attData['checkOutTime'],
+      );
     } else {
-      updates['totalHours'] = _computeTotalHours(attData['checkInTime'], nowIso);
+      updates['totalHours'] = _computeTotalHours(
+        attData['checkInTime'],
+        nowIso,
+      );
     }
 
     // Update location status metadata
@@ -656,21 +855,23 @@ class AttendanceService {
   // ── Get Latest Location per User ──
   Future<List<Map<String, dynamic>>> getLatestLocations(String date) async {
     try {
-      final snapshot = await _db
-          .collection('locations')
-          .where('timestamp', isGreaterThanOrEqualTo: '${date}T00:00:00')
-          .where('timestamp', isLessThanOrEqualTo: '${date}T23:59:59')
-          .orderBy('timestamp', descending: true)
-          .get();
+      final ref = _rtdb.ref('locations');
+      final event = await ref.get();
+      final data = event.value as Map<dynamic, dynamic>? ?? {};
 
       final latestLocs = <String, Map<String, dynamic>>{};
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final userId = data['userId'] as String?;
-        if (userId != null && !latestLocs.containsKey(userId)) {
-          latestLocs[userId] = {'id': doc.id, ...data};
+      data.forEach((key, val) {
+        if (val != null) {
+          final map = Map<String, dynamic>.from(val as Map);
+          final userId = map['userId'] as String?;
+          final timestamp = map['timestamp'] as String?;
+          if (userId != null &&
+              timestamp != null &&
+              timestamp.startsWith(date)) {
+            latestLocs[userId] = map;
+          }
         }
-      }
+      });
       return latestLocs.values.toList();
     } catch (e) {
       throw AppException(getFirebaseErrorMessage(e));

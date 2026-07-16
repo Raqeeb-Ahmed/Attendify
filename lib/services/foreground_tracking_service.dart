@@ -73,6 +73,10 @@ class _LocationTaskHandler extends TaskHandler {
             timeLimit: Duration(seconds: 15),
           ),
         );
+        if (position.accuracy > 150) {
+          debugPrint('[ForegroundTask] Low accuracy (${position.accuracy}m). Ignoring.');
+          return;
+        }
       } catch (_) {
         return;
       }
@@ -94,6 +98,7 @@ class _LocationTaskHandler extends TaskHandler {
         'status': status,
         'insideRadius': isInside,
         'distanceFromOffice': distance.round(),
+        'isMocked': position.isMocked,
       };
 
       // Check internet connectivity
@@ -161,37 +166,39 @@ class _LocationTaskHandler extends TaskHandler {
 
       // ── Auto-checkout at 6:00 PM (18:00) ─────────────────────────────────
       final autoCheckoutTime = DateTime(now.year, now.month, now.day, 18, 0);
-      final attRef = db.collection('attendance').doc('${uid}_$today');
-      final attDoc = await attRef.get();
+      if (now.isAfter(autoCheckoutTime)) {
+        final attRef = db.collection('attendance').doc('${uid}_$today');
+        final attDoc = await attRef.get();
 
-      if (attDoc.exists && attDoc.data()?['checkInTime'] != null) {
-        final attData = attDoc.data()!;
-        final alreadyCheckedOut = attData['checkOutTime'] != null;
+        if (attDoc.exists && attDoc.data()?['checkInTime'] != null) {
+          final attData = attDoc.data()!;
+          final alreadyCheckedOut = attData['checkOutTime'] != null;
 
-        // Trigger auto-checkout if past 6 PM and not yet checked out
-        if (!alreadyCheckedOut && now.isAfter(autoCheckoutTime)) {
-          final checkInTime = attData['checkInTime'] as String?;
-          final totalHours = _computeTotalHoursLocal(checkInTime, nowIso);
-          final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
-          const officeEndMins = 17 * 60 + 45;
-          final nowMins = now.hour * 60 + now.minute;
-          final overtimeMins = nowMins > officeEndMins ? nowMins - officeEndMins : 0;
+          // Trigger auto-checkout if past 6 PM and not yet checked out
+          if (!alreadyCheckedOut) {
+            final checkInTime = attData['checkInTime'] as String?;
+            final totalHours = _computeTotalHoursLocal(checkInTime, nowIso);
+            final insideOfficeMs = ((attData['insideTime'] ?? 0) + (attData['offlineTime'] ?? 0)) * 60 * 1000;
+            const officeEndMins = 18 * 60;
+            final nowMins = now.hour * 60 + now.minute;
+            final overtimeMins = nowMins > officeEndMins ? nowMins - officeEndMins : 0;
 
-          await attRef.update({
-            'checkOutTime': nowIso,
-            'lastActive': nowIso,
-            'sessionStatus': 'auto-checkout',
-            'totalHours': totalHours,
-            'insideOfficeTime': insideOfficeMs,
-            'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
-          });
-          debugPrint('[ForegroundTask] Auto-checkout done. Overtime: ${overtimeMins}m');
+            await attRef.update({
+              'checkOutTime': nowIso,
+              'lastActive': nowIso,
+              'sessionStatus': 'auto-checkout',
+              'totalHours': totalHours,
+              'insideOfficeTime': insideOfficeMs,
+              'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
+            });
+            debugPrint('[ForegroundTask] Auto-checkout done. Overtime: ${overtimeMins}m');
 
-          await FlutterForegroundTask.updateService(
-            notificationTitle: 'Work session ended',
-            notificationText: 'Auto checked-out. Overtime tracking active.',
-          );
-          return; // Don't do more time tracking this cycle
+            await FlutterForegroundTask.updateService(
+              notificationTitle: 'Work session ended',
+              notificationText: 'Auto checked-out. Overtime tracking active.',
+            );
+            return; // Don't do more time tracking this cycle
+          }
         }
       }
 

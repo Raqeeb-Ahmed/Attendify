@@ -11,7 +11,6 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   late final GoogleSignIn _googleSignIn;
 
-
   AuthService() {
     _googleSignIn = GoogleSignIn.instance;
   }
@@ -20,20 +19,30 @@ class AuthService {
     try {
       debugPrint("Starting Google Sign-In...");
 
-      // Check if authentication is supported
+      if (kIsWeb) {
+        debugPrint("Running on Web. Triggering Firebase signInWithPopup...");
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        googleProvider.setCustomParameters({
+          'prompt': 'select_account'
+        });
+        final UserCredential userCredential = await _auth.signInWithPopup(googleProvider);
+        debugPrint("Firebase Web Sign-In Successful");
+        return userCredential;
+      }
+
+      // On non-Web, check if authenticate is supported
       if (!_googleSignIn.supportsAuthenticate()) {
-        debugPrint("Google Sign-In authentication not supported");
+        debugPrint("Google Sign-In authentication not supported on this device.");
         return null;
       }
 
-      // Trigger Google Sign-In flow
+      // Trigger Google Sign-In flow (this is the only method in v7)
       final googleUser = await _googleSignIn.authenticate();
 
       debugPrint("Getting authentication tokens...");
 
-      // Get authentication tokens from the Google account
-      // In v7, authentication.idToken contains the ID token for Firebase
-      final GoogleSignInAuthentication authentication = googleUser.authentication;
+      final GoogleSignInAuthentication authentication =
+          googleUser.authentication;
       final String? idToken = authentication.idToken;
 
       if (idToken == null) {
@@ -41,12 +50,8 @@ class AuthService {
         return null;
       }
 
-      // Create Firebase credential
-      // Note: In v7, only idToken is available from authentication
-      // accessToken is optional for Firebase Auth
-      final credential = GoogleAuthProvider.credential(
-        idToken: idToken,
-      );
+      // Create Firebase credential using idToken (accessToken is optional/deprecated in v7)
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
 
       // Sign in to Firebase
       final UserCredential userCredential = await _auth.signInWithCredential(
@@ -54,8 +59,10 @@ class AuthService {
       );
       debugPrint("Firebase Sign-In Successful");
 
-      // Register Push Notification Token
-      await PushNotificationService.instance.registerUserToken(userCredential.user!.uid);
+      // Register Push Notification Token (Skip on Web)
+      await PushNotificationService.instance.registerUserToken(
+        userCredential.user!.uid,
+      );
 
       return userCredential;
     } on FirebaseAuthException catch (e) {
@@ -72,12 +79,16 @@ class AuthService {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser != null) {
-        // Remove push notification token before signing out
-        await PushNotificationService.instance.removeUserToken(currentUser.uid);
+        // Remove push notification token before signing out (Skip on Web)
+        if (!kIsWeb) {
+          await PushNotificationService.instance.removeUserToken(currentUser.uid);
+        }
       }
 
-      await WorkManagerService.cancelAll();
-      await ForegroundTrackingService.stop();
+      if (!kIsWeb) {
+        await WorkManagerService.cancelAll();
+        await ForegroundTrackingService.stop();
+      }
       await _googleSignIn.signOut();
       await _auth.signOut();
 

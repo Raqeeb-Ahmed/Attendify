@@ -2,17 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class MyLearningScreen extends StatelessWidget {
+class MyLearningScreen extends StatefulWidget {
   const MyLearningScreen({super.key});
 
-  Future<void> _startCourse(BuildContext context, String docId) async {
+  @override
+  State<MyLearningScreen> createState() => _MyLearningScreenState();
+}
+
+class _MyLearningScreenState extends State<MyLearningScreen> {
+  final Map<String, bool> _updatingCourses = {};
+
+  Future<void> _startCourse(String docId) async {
+    if (_updatingCourses[docId] == true) return;
+    setState(() => _updatingCourses[docId] = true);
     try {
       await FirebaseFirestore.instance
           .collection('user_trainings')
           .doc(docId)
           .update({'status': 'in_progress', 'progress': 10});
 
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Course started successfully!'),
@@ -21,15 +30,21 @@ class MyLearningScreen extends StatelessWidget {
         );
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingCourses[docId] = false);
+      }
     }
   }
 
-  Future<void> _completeCourse(BuildContext context, String docId) async {
+  Future<void> _completeCourse(String docId) async {
+    if (_updatingCourses[docId] == true) return;
+    setState(() => _updatingCourses[docId] = true);
     try {
       await FirebaseFirestore.instance
           .collection('user_trainings')
@@ -40,7 +55,7 @@ class MyLearningScreen extends StatelessWidget {
             'completedAt': FieldValue.serverTimestamp(),
           });
 
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Congratulations! Course completed!'),
@@ -49,10 +64,14 @@ class MyLearningScreen extends StatelessWidget {
         );
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingCourses[docId] = false);
       }
     }
   }
@@ -69,7 +88,6 @@ class MyLearningScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Color(0xFF1E293B)),
           onPressed: () => Navigator.pop(context),
-          // tooltip: 'Menu',
         ),
         title: LayoutBuilder(
           builder: (context, constraints) {
@@ -251,8 +269,19 @@ class MyLearningScreen extends StatelessWidget {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: () => _startCourse(context, doc.id),
-                            icon: const Icon(Icons.play_arrow, size: 18),
+                            onPressed: _updatingCourses[doc.id] == true
+                                ? null
+                                : () => _startCourse(doc.id),
+                            icon: _updatingCourses[doc.id] == true
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.play_arrow, size: 18),
                             label: const Text('Start Learning'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF6366F1),
@@ -269,8 +298,19 @@ class MyLearningScreen extends StatelessWidget {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: () => _completeCourse(context, doc.id),
-                            icon: const Icon(Icons.check_circle, size: 18),
+                            onPressed: _updatingCourses[doc.id] == true
+                                ? null
+                                : () => _completeCourse(doc.id),
+                            icon: _updatingCourses[doc.id] == true
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.check_circle, size: 18),
                             label: const Text('Mark Complete'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF22C55E),

@@ -15,6 +15,7 @@ class LeaveManagementScreen extends StatefulWidget {
 
 class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   String _selectedFilter = 'all';
+  final Map<String, bool> _updatingDocs = {};
 
   @override
   Widget build(BuildContext context) {
@@ -179,9 +180,45 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: ElevatedButton.icon(onPressed: () => _updateStatus(docId, 'approved'), icon: const Icon(Icons.check, size: 18), label: const Text('Approve'), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF22C55E), foregroundColor: Colors.white))),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _updatingDocs[docId] == true
+                        ? null
+                        : () => _updateStatus(docId, 'approved'),
+                    icon: _updatingDocs[docId] == true && _updatingDocs[docId + '_approved'] == true
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.check, size: 18),
+                    label: const Text('Approve'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF22C55E),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: ElevatedButton.icon(onPressed: () => _updateStatus(docId, 'rejected'), icon: const Icon(Icons.close, size: 18), label: const Text('Reject'), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444), foregroundColor: Colors.white))),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _updatingDocs[docId] == true
+                        ? null
+                        : () => _updateStatus(docId, 'rejected'),
+                    icon: _updatingDocs[docId] == true && _updatingDocs[docId + '_rejected'] == true
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.close, size: 18),
+                    label: const Text('Reject'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEF4444),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
               ],
             ),
           ],
@@ -198,6 +235,11 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   String _formatDate(dynamic date) { if (date == null) return '--'; if (date is Timestamp) return DateFormat('MMM dd, yyyy').format(date.toDate()); if (date is String) { try { return DateFormat('MMM dd, yyyy').format(DateTime.parse(date)); } catch (_) { return date; } } return '--'; }
 
   Future<void> _updateStatus(String docId, String status) async {
+    if (_updatingDocs[docId] == true) return;
+    setState(() {
+      _updatingDocs[docId] = true;
+      _updatingDocs[docId + '_' + status] = true;
+    });
     try {
       await FirebaseFirestore.instance.collection('leaves').doc(docId).update({
         'status': status,
@@ -261,6 +303,13 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
             backgroundColor: const Color(0xFFEF4444),
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingDocs[docId] = false;
+          _updatingDocs[docId + '_' + status] = false;
+        });
       }
     }
   }

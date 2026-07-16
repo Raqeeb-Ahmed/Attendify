@@ -31,7 +31,9 @@ class NotificationService {
   }
 
   Future<void> markAsRead(String notificationId) async {
-    await _db.collection('notifications').doc(notificationId).update({'read': true});
+    await _db.collection('notifications').doc(notificationId).update({
+      'read': true,
+    });
   }
 
   Future<void> markAllRead(String userId) async {

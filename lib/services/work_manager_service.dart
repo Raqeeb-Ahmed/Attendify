@@ -57,7 +57,11 @@ Future<void> _runHeartbeat(String uid, String name, String email) async {
 }
 
 Future<void> _runLocationUpdate(
-    String uid, String name, String email, String? department) async {
+  String uid,
+  String name,
+  String email,
+  String? department,
+) async {
   final db = FirebaseFirestore.instance;
   final now = DateTime.now();
   final nowIso = now.toIso8601String();
@@ -67,11 +71,14 @@ Future<void> _runLocationUpdate(
   try {
     final permission = await Geolocator.checkPermission();
     // Accept both "Always" and "While in use" permissions
-    locationGranted = permission == LocationPermission.always || 
-                    permission == LocationPermission.whileInUse;
-    
+    locationGranted =
+        permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse;
+
     if (!locationGranted) {
-      debugPrint('[WorkManager] Location permission denied. Current: $permission');
+      debugPrint(
+        '[WorkManager] Location permission denied. Current: $permission',
+      );
       return;
     }
   } catch (e) {
@@ -87,6 +94,12 @@ Future<void> _runLocationUpdate(
         timeLimit: Duration(seconds: 10),
       ),
     );
+    if (position.accuracy > 150) {
+      debugPrint(
+        '[WorkManager] Low accuracy (${position.accuracy}m). Ignoring.',
+      );
+      return;
+    }
   } catch (_) {
     return;
   }
@@ -110,6 +123,7 @@ Future<void> _runLocationUpdate(
     'status': status,
     'insideRadius': isInside,
     'distanceFromOffice': distance.round(),
+    'isMocked': position.isMocked,
   };
 
   // Check internet connectivity
@@ -150,7 +164,8 @@ Future<void> _runLocationUpdate(
   await db.collection('locations').add(locationData);
 
   // Auto check-in logic - Check via GPS
-  final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  final today =
+      '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   final attendanceId = '${uid}_$today';
   final attRef = db.collection('attendance').doc(attendanceId);
 
@@ -162,7 +177,8 @@ Future<void> _runLocationUpdate(
   try {
     didCheckIn = await db.runTransaction((transaction) async {
       final attDoc = await transaction.get(attRef);
-      final hasCheckedIn = attDoc.exists && (attDoc.data()?['checkInTime'] != null);
+      final hasCheckedIn =
+          attDoc.exists && (attDoc.data()?['checkInTime'] != null);
 
       if (hasCheckedIn) {
         debugPrint('[WorkManager] Already checked in today (transaction)');
@@ -171,7 +187,14 @@ Future<void> _runLocationUpdate(
 
       // Check WiFi if inside
       if (isInside) {
-        isWifiCheckIn = await _checkWifiAndAutoCheckIn(uid, name, email, department, now, nowIso);
+        isWifiCheckIn = await _checkWifiAndAutoCheckIn(
+          uid,
+          name,
+          email,
+          department,
+          now,
+          nowIso,
+        );
       }
 
       // Determine if we should check in - strict WiFi + GPS AND logic
@@ -222,39 +245,64 @@ Future<void> _runLocationUpdate(
     debugPrint('[WorkManager] ✅ Auto check-in successful via WiFi & GPS');
   } else {
     // ── Auto-checkout at 6:00 PM ──────────────────────────────────────────
-    final attDoc = await attRef.get();
-    if (attDoc.exists && attDoc.data()?['checkInTime'] != null) {
-      final attData = attDoc.data()!;
-      final alreadyCheckedOut = attData['checkOutTime'] != null;
-      final autoCheckoutTime = DateTime(now.year, now.month, now.day, 18, 0);
+    final autoCheckoutTime = DateTime(now.year, now.month, now.day, 18, 0);
+    bool didAutoCheckout = false;
 
-      if (!alreadyCheckedOut && now.isAfter(autoCheckoutTime)) {
-        final totalHours = _computeTotalHoursLocal(attData['checkInTime'], nowIso);
-        final insideOfficeMs = (attData['insideTime'] ?? 0) * 60 * 1000;
-        const officeEndMins = 17 * 60 + 45;
-        final nowMins = now.hour * 60 + now.minute;
-        final overtimeMins = nowMins > officeEndMins ? nowMins - officeEndMins : 0;
+    if (now.isAfter(autoCheckoutTime)) {
+      final attDoc = await attRef.get();
+      if (attDoc.exists && attDoc.data()?['checkInTime'] != null) {
+        final attData = attDoc.data()!;
+        final alreadyCheckedOut = attData['checkOutTime'] != null;
 
-        await attRef.update({
-          'checkOutTime': nowIso,
-          'lastActive': nowIso,
-          'sessionStatus': 'auto-checkout',
-          'totalHours': totalHours,
-          'insideOfficeTime': insideOfficeMs,
-          'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
-        });
-        debugPrint('[WorkManager] Auto-checkout done. Overtime: ${overtimeMins}m');
-      } else {
-        // ── Delegate ALL time-tracking arithmetic to the centralized service ──
-        await AttendanceService().updateTimeTracking(uid, now, isInside, nowIso);
-        debugPrint('[WorkManager] Delegated time tracking to centralized service');
+        if (!alreadyCheckedOut) {
+          final totalHours = _computeTotalHoursLocal(
+            attData['checkInTime'],
+            nowIso,
+          );
+          final insideOfficeMs =
+              ((attData['insideTime'] ?? 0) + (attData['offlineTime'] ?? 0)) *
+              60 *
+              1000;
+          const officeEndMins = 18 * 60;
+          final nowMins = now.hour * 60 + now.minute;
+          final overtimeMins = nowMins > officeEndMins
+              ? nowMins - officeEndMins
+              : 0;
+
+          await attRef.update({
+            'checkOutTime': nowIso,
+            'lastActive': nowIso,
+            'sessionStatus': 'auto-checkout',
+            'totalHours': totalHours,
+            'insideOfficeTime': insideOfficeMs,
+            'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
+          });
+          debugPrint(
+            '[WorkManager] Auto-checkout done. Overtime: ${overtimeMins}m',
+          );
+          didAutoCheckout = true;
+        }
       }
+    }
+
+    if (!didAutoCheckout) {
+      // ── Delegate ALL time-tracking arithmetic to the centralized service ──
+      await AttendanceService().updateTimeTracking(
+        uid,
+        now,
+        isInside,
+        nowIso,
+        forceWrite: true,
+      );
+      debugPrint(
+        '[WorkManager] Delegated time tracking to centralized service',
+      );
     }
   }
 }
 
 bool _isLateCheckIn(DateTime now) {
-  final officeStart = DateTime(now.year, now.month, now.day, 9, 45);
+  final officeStart = DateTime(now.year, now.month, now.day, 9, 0);
   return now.isAfter(officeStart);
 }
 
@@ -278,7 +326,9 @@ Future<bool> _checkWifiAndAutoCheckIn(
     debugPrint('[WorkManager] WiFi check: $wifiName (BSSID: $bssid)');
 
     if (wifiName == null) {
-      debugPrint('[WorkManager] WiFi name is null (location permission required on Android 10+)');
+      debugPrint(
+        '[WorkManager] WiFi name is null (location permission required on Android 10+)',
+      );
       return false;
     }
 
@@ -297,7 +347,9 @@ Future<bool> _checkWifiAndAutoCheckIn(
       }
     }
 
-    debugPrint('[WorkManager] WiFi "$cleanName" does not match office networks');
+    debugPrint(
+      '[WorkManager] WiFi "$cleanName" does not match office networks',
+    );
     return false;
   } on PlatformException catch (e) {
     // network_info_plus throws PlatformException when permission denied
@@ -313,8 +365,12 @@ double _haversine(double lat1, double lon1, double lat2, double lon2) {
   const R = 6371e3;
   final dLat = (lat2 - lat1) * (pi / 180);
   final dLon = (lon2 - lon1) * (pi / 180);
-  final a = sin(dLat / 2) * sin(dLat / 2) +
-      cos(lat1 * (pi / 180)) * cos(lat2 * (pi / 180)) * sin(dLon / 2) * sin(dLon / 2);
+  final a =
+      sin(dLat / 2) * sin(dLat / 2) +
+      cos(lat1 * (pi / 180)) *
+          cos(lat2 * (pi / 180)) *
+          sin(dLon / 2) *
+          sin(dLon / 2);
   final c = 2 * atan2(sqrt(a), sqrt(1 - a));
   return R * c;
 }
@@ -323,7 +379,9 @@ double _haversine(double lat1, double lon1, double lat2, double lon2) {
 /// All ongoing metric tracking is handled by AttendanceService.
 double _computeTotalHoursLocal(String? checkInIso, String? checkOutIso) {
   if (checkInIso == null || checkOutIso == null) return 0.0;
-  final diffMs = DateTime.parse(checkOutIso).difference(DateTime.parse(checkInIso)).inMilliseconds;
+  final diffMs = DateTime.parse(
+    checkOutIso,
+  ).difference(DateTime.parse(checkInIso)).inMilliseconds;
   return double.parse((diffMs / (1000 * 60 * 60)).toStringAsFixed(2));
 }
 
@@ -343,7 +401,10 @@ Future<void> _showAutoCheckInNotification(String name) async {
     description: 'Notifies when automatic check-in occurs',
     importance: Importance.high,
   );
-  await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+  await plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
       ?.createNotificationChannel(channel);
 
   const notificationDetails = AndroidNotificationDetails(
@@ -372,7 +433,7 @@ class WorkManagerService {
   /// Call once from main() before runApp
   static Future<void> initialize() async {
     if (_initialized) return;
-    
+
     try {
       await Workmanager().initialize(
         callbackDispatcher,
@@ -399,14 +460,16 @@ class WorkManagerService {
     }
 
     if (!_initialized) {
-      debugPrint('[WorkManagerService] ⚠️ Not initialized, call initialize() first');
+      debugPrint(
+        '[WorkManagerService] ⚠️ Not initialized, call initialize() first',
+      );
       return;
     }
 
     try {
       // Cancel existing tasks first to prevent duplicates
       await Workmanager().cancelByUniqueName(_locationTaskName);
-      
+
       await Workmanager().registerPeriodicTask(
         _locationTaskName,
         _locationTaskName,
@@ -427,7 +490,7 @@ class WorkManagerService {
         backoffPolicyDelay: const Duration(minutes: 5),
         initialDelay: const Duration(minutes: 1), // Start after 1 minute
       );
-      
+
       debugPrint('[WorkManagerService] ✅ Location task registered for $name');
     } catch (e) {
       debugPrint('[WorkManagerService] ❌ Failed to register location task: $e');

@@ -26,7 +26,21 @@ class LocationMonitorScreen extends StatefulWidget {
 class _LocationMonitorScreenState extends State<LocationMonitorScreen> {
   String? _selectedUid;
   final _db = FirebaseFirestore.instance;
-  final String _today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  String _selectedDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.parse(_selectedDate),
+      firstDate: DateTime(2025),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDate = DateFormat('yyyy-MM-dd').format(picked);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,9 +74,40 @@ class _LocationMonitorScreenState extends State<LocationMonitorScreen> {
           initialsHelper: _initials,
         );
 
+        final datePickerButton = InkWell(
+          onTap: () => _selectDate(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.white,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('dd MMM yyyy').format(DateTime.parse(_selectedDate)),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.calendar_today_rounded,
+                  size: 14,
+                  color: Color(0xFF6366F1),
+                ),
+              ],
+            ),
+          ),
+        );
+
         return Column(
           children: [
-            _buildHeader(isMobile, widget.onMenuPressed, dropdownWidget),
+            _buildHeader(isMobile, widget.onMenuPressed, dropdownWidget, datePickerButton),
             Expanded(
               child: _selectedUid == null
                   ? const Center(
@@ -84,7 +129,7 @@ class _LocationMonitorScreenState extends State<LocationMonitorScreen> {
                     )
                   : _ActiveEmployeeTrackerView(
                       uid: _selectedUid!,
-                      today: _today,
+                      today: _selectedDate,
                       isMobile: isMobile,
                     ),
             ),
@@ -109,7 +154,11 @@ class _LocationMonitorScreenState extends State<LocationMonitorScreen> {
     bool isMobile,
     VoidCallback? onMenuPressed,
     Widget dropdownWidget,
+    Widget datePickerButton,
   ) {
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final isToday = _selectedDate == todayStr;
+
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: isMobile ? 16 : 32,
@@ -139,42 +188,23 @@ class _LocationMonitorScreenState extends State<LocationMonitorScreen> {
                     const Text(
                       'Location Monitor',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF1E293B),
                       ),
                     ),
                     const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0FDF4),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF86EFAC)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, size: 6, color: Color(0xFF22C55E)),
-                          SizedBox(width: 4),
-                          Text(
-                            'LIVE',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF16A34A),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    _buildStatusBadge(isToday),
                   ],
                 ),
                 const SizedBox(height: 8),
-                dropdownWidget,
+                Row(
+                  children: [
+                    Expanded(child: dropdownWidget),
+                    const SizedBox(width: 8),
+                    datePickerButton,
+                  ],
+                ),
               ],
             )
           : Row(
@@ -200,7 +230,7 @@ class _LocationMonitorScreenState extends State<LocationMonitorScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Live employee geofence status · ${DateFormat('EEEE, d MMM').format(DateTime.now())}',
+                        'Employee geofence status & movement history',
                         style: const TextStyle(
                           fontSize: 13,
                           color: Color(0xFF94A3B8),
@@ -211,36 +241,42 @@ class _LocationMonitorScreenState extends State<LocationMonitorScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                Container(width: 260, child: dropdownWidget),
+                datePickerButton,
                 const SizedBox(width: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDF4),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF86EFAC)),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.circle, size: 8, color: Color(0xFF22C55E)),
-                      SizedBox(width: 6),
-                      Text(
-                        'LIVE',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF16A34A),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                Container(width: 240, child: dropdownWidget),
+                const SizedBox(width: 16),
+                _buildStatusBadge(isToday),
               ],
             ),
+    );
+  }
+
+  Widget _buildStatusBadge(bool isToday) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: isToday ? const Color(0xFFF0FDF4) : const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isToday ? const Color(0xFF86EFAC) : const Color(0xFF93C5FD)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 8, color: isToday ? const Color(0xFF22C55E) : const Color(0xFF3B82F6)),
+          const SizedBox(width: 6),
+          Text(
+            isToday ? 'LIVE' : 'HISTORY',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: isToday ? const Color(0xFF16A34A) : const Color(0xFF1D4ED8),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -330,7 +366,7 @@ class _ActiveEmployeeTrackerViewState
   @override
   void didUpdateWidget(covariant _ActiveEmployeeTrackerView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.uid != widget.uid) {
+    if (oldWidget.uid != widget.uid || oldWidget.today != widget.today) {
       _cachedRoute = null;
       _lastInputPoints = null;
       _lastPoints = [];

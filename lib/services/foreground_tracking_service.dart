@@ -22,8 +22,10 @@ void startForegroundTaskCallback() {
 
 class _LocationTaskHandler extends TaskHandler {
   static const int _radiusMeters = 100;
-  double? _lastLoggedLat;
-  double? _lastLoggedLng;
+  static double? _lastLoggedLat;
+  static double? _lastLoggedLng;
+  static DateTime? _lastHistoryWriteTime;
+  static bool _checkedOutCached = false;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -50,18 +52,23 @@ class _LocationTaskHandler extends TaskHandler {
       final uid = await FlutterForegroundTask.getData<String>(key: 'uid');
       if (uid == null || uid.isEmpty) return;
 
-      final name = await FlutterForegroundTask.getData<String>(key: 'name') ?? '';
-      final email = await FlutterForegroundTask.getData<String>(key: 'email') ?? '';
+      final name =
+          await FlutterForegroundTask.getData<String>(key: 'name') ?? '';
+      final email =
+          await FlutterForegroundTask.getData<String>(key: 'email') ?? '';
 
       final db = FirebaseFirestore.instance;
       final now = DateTime.now();
       final nowIso = now.toIso8601String();
-      final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final today =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
       // Location permission check - REQUIRES "Always" for background tracking
       final permission = await Geolocator.checkPermission();
       if (permission != LocationPermission.always) {
-        debugPrint('[ForegroundTask] Location permission is not "Always". Skipping update.');
+        debugPrint(
+          '[ForegroundTask] Location permission is not "Always". Skipping update.',
+        );
         return;
       }
 
@@ -74,7 +81,9 @@ class _LocationTaskHandler extends TaskHandler {
           ),
         );
         if (position.accuracy > 150) {
-          debugPrint('[ForegroundTask] Low accuracy (${position.accuracy}m). Ignoring.');
+          debugPrint(
+            '[ForegroundTask] Low accuracy (${position.accuracy}m). Ignoring.',
+          );
           return;
         }
       } catch (_) {
@@ -82,8 +91,10 @@ class _LocationTaskHandler extends TaskHandler {
       }
 
       final distance = _haversine(
-        position.latitude, position.longitude,
-        AppConfig.officeLat, AppConfig.officeLng,
+        position.latitude,
+        position.longitude,
+        AppConfig.officeLat,
+        AppConfig.officeLng,
       );
       final isInside = distance <= _radiusMeters;
       final status = isInside ? 'present' : 'outside';
@@ -113,9 +124,11 @@ class _LocationTaskHandler extends TaskHandler {
       }
 
       if (!isOnline) {
-        debugPrint('[ForegroundTask] Device offline - Caching location locally');
+        debugPrint(
+          '[ForegroundTask] Device offline - Caching location locally',
+        );
         await OfflineLocationService().cacheLocation(locationData);
-        
+
         await FlutterForegroundTask.updateService(
           notificationTitle: 'Work session active (Offline)',
           notificationText: 'Offline tracking active. Cached location locally.',
@@ -140,9 +153,16 @@ class _LocationTaskHandler extends TaskHandler {
       // Overwrite latest coordinates in Realtime Database to save requests
       await rtdb.ref('locations/${uid}_latest').set(locationData);
 
-      // Distance filter to save Firestore writes: only log if user moves > 15 meters
+      // Distance & Time filters to save Firestore writes: log history at most once every 10 minutes AND if moved > 15 meters
       bool shouldLogCoords = true;
-      if (_lastLoggedLat != null && _lastLoggedLng != null) {
+      final nowTime = DateTime.now();
+
+      if (_lastHistoryWriteTime != null &&
+          nowTime.difference(_lastHistoryWriteTime!).inMinutes < 10) {
+        shouldLogCoords = false;
+      }
+
+      if (shouldLogCoords && _lastLoggedLat != null && _lastLoggedLng != null) {
         final moveDistance = _haversine(
           position.latitude,
           position.longitude,
@@ -159,14 +179,19 @@ class _LocationTaskHandler extends TaskHandler {
         await db.collection('locations').add(locationData);
         _lastLoggedLat = position.latitude;
         _lastLoggedLng = position.longitude;
-        debugPrint('[ForegroundTask] Logged movement coordinate to Firestore history');
+        _lastHistoryWriteTime = nowTime;
+        debugPrint(
+          '[ForegroundTask] Logged movement coordinate to Firestore history',
+        );
       } else {
-        debugPrint('[ForegroundTask] Skipped logging stationary coordinate to save Firestore writes');
+        debugPrint(
+          '[ForegroundTask] Skipped logging coordinate to save Firestore writes',
+        );
       }
 
       // ── Auto-checkout at 6:00 PM (18:00) ─────────────────────────────────
       final autoCheckoutTime = DateTime(now.year, now.month, now.day, 18, 0);
-      if (now.isAfter(autoCheckoutTime)) {
+      if (now.isAfter(autoCheckoutTime) && !_checkedOutCached) {
         final attRef = db.collection('attendance').doc('${uid}_$today');
         final attDoc = await attRef.get();
 
@@ -174,14 +199,20 @@ class _LocationTaskHandler extends TaskHandler {
           final attData = attDoc.data()!;
           final alreadyCheckedOut = attData['checkOutTime'] != null;
 
-          // Trigger auto-checkout if past 6 PM and not yet checked out
-          if (!alreadyCheckedOut) {
+          if (alreadyCheckedOut) {
+            _checkedOutCached = true;
+          } else {
             final checkInTime = attData['checkInTime'] as String?;
             final totalHours = _computeTotalHoursLocal(checkInTime, nowIso);
-            final insideOfficeMs = ((attData['insideTime'] ?? 0) + (attData['offlineTime'] ?? 0)) * 60 * 1000;
+            final insideOfficeMs =
+                ((attData['insideTime'] ?? 0) + (attData['offlineTime'] ?? 0)) *
+                60 *
+                1000;
             const officeEndMins = 18 * 60;
             final nowMins = now.hour * 60 + now.minute;
-            final overtimeMins = nowMins > officeEndMins ? nowMins - officeEndMins : 0;
+            final overtimeMins = nowMins > officeEndMins
+                ? nowMins - officeEndMins
+                : 0;
 
             await attRef.update({
               'checkOutTime': nowIso,
@@ -191,7 +222,10 @@ class _LocationTaskHandler extends TaskHandler {
               'insideOfficeTime': insideOfficeMs,
               'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
             });
-            debugPrint('[ForegroundTask] Auto-checkout done. Overtime: ${overtimeMins}m');
+            _checkedOutCached = true;
+            debugPrint(
+              '[ForegroundTask] Auto-checkout done. Overtime: ${overtimeMins}m',
+            );
 
             await FlutterForegroundTask.updateService(
               notificationTitle: 'Work session ended',
@@ -222,8 +256,12 @@ class _LocationTaskHandler extends TaskHandler {
     const R = 6371e3;
     final dLat = (lat2 - lat1) * (pi / 180);
     final dLon = (lon2 - lon1) * (pi / 180);
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1 * (pi / 180)) * cos(lat2 * (pi / 180)) * sin(dLon / 2) * sin(dLon / 2);
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * (pi / 180)) *
+            cos(lat2 * (pi / 180)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
     return R * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
 
@@ -231,7 +269,9 @@ class _LocationTaskHandler extends TaskHandler {
   /// All ongoing metric tracking is handled by AttendanceService.
   double _computeTotalHoursLocal(String? checkInIso, String? checkOutIso) {
     if (checkInIso == null || checkOutIso == null) return 0.0;
-    final diffMs = DateTime.parse(checkOutIso).difference(DateTime.parse(checkInIso)).inMilliseconds;
+    final diffMs = DateTime.parse(
+      checkOutIso,
+    ).difference(DateTime.parse(checkInIso)).inMilliseconds;
     return double.parse((diffMs / (1000 * 60 * 60)).toStringAsFixed(2));
   }
 }
@@ -271,12 +311,15 @@ class ForegroundTrackingService {
   static Future<void> requestBatteryExemption() async {
     if (!Platform.isAndroid) return;
     try {
-      final isIgnoring = await FlutterForegroundTask.isIgnoringBatteryOptimizations;
+      final isIgnoring =
+          await FlutterForegroundTask.isIgnoringBatteryOptimizations;
       if (!isIgnoring) {
         await FlutterForegroundTask.requestIgnoreBatteryOptimization();
       }
     } catch (e) {
-      debugPrint('[ForegroundTrackingService] Battery exemption request failed: $e');
+      debugPrint(
+        '[ForegroundTrackingService] Battery exemption request failed: $e',
+      );
     }
   }
 
@@ -285,7 +328,9 @@ class ForegroundTrackingService {
     try {
       await FlutterForegroundTask.requestNotificationPermission();
     } catch (e) {
-      debugPrint('[ForegroundTrackingService] Notification permission request failed: $e');
+      debugPrint(
+        '[ForegroundTrackingService] Notification permission request failed: $e',
+      );
     }
   }
 
@@ -300,7 +345,10 @@ class ForegroundTrackingService {
     await FlutterForegroundTask.saveData(key: 'uid', value: uid);
     await FlutterForegroundTask.saveData(key: 'name', value: name);
     await FlutterForegroundTask.saveData(key: 'email', value: email);
-    await FlutterForegroundTask.saveData(key: 'department', value: department ?? '');
+    await FlutterForegroundTask.saveData(
+      key: 'department',
+      value: department ?? '',
+    );
 
     final isRunning = await FlutterForegroundTask.isRunningService;
     if (isRunning) {

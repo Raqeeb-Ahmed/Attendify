@@ -1,54 +1,46 @@
 {
   "project_info": {
-    "project_number": "41353583974",
-    "firebase_url": "https://attendify-2e534-default-rtdb.firebaseio.com",
-    "project_id": "attendify-2e534",
-    "storage_bucket": "attendify-2e534.firebasestorage.app"
+    "project_number": "1011764140696",
+    "firebase_url": "https://attendify-aea1d-default-rtdb.firebaseio.com",
+    "project_id": "attendify-aea1d",
+    "storage_bucket": "attendify-aea1d.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:41353583974:android:cb6066b577077896d87ca7",
+        "mobilesdk_app_id": "1:1011764140696:android:fcf622867391217359ceed",
         "android_client_info": {
           "package_name": "com.attendo.attendance"
         }
       },
       "oauth_client": [
         {
-          "client_id": "41353583974-7rk2fj0q19p7j3qipd6lirtba4dl9g32.apps.googleusercontent.com",
+          "client_id": "1011764140696-l7nmj41d0886709t0b6niglfb4jo5ncd.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.attendo.attendance",
-            "certificate_hash": "5a5604f2b1498dbab2179bc2d45df27e7fc895f7"
+            "certificate_hash": "c43384fe16635c9830d37be99c45bbd33f92f820"
           }
         },
         {
-          "client_id": "41353583974-th9ti2cvdki48ntj22gdjma9e58lo2e9.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.attendo.attendance",
-            "certificate_hash": "6a297986fd9302bc1de8dd434545c97958ea7b9e"
-          }
-        },
-        {
-          "client_id": "41353583974-qpllhkf73sevg11k6h8jdq4fko8hquvq.apps.googleusercontent.com",
+          "client_id": "1011764140696-f11ro7v81riu3n56m1derfmiasf7c5up.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDqDCmvqkVXO0sS8eL6gItD-YG4Ho0UEcU"
+          "current_key": "AIzaSyDv19RG4XpJQ6bbfk99lzWzHogmQs_uOMM"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "41353583974-emlthegfn6fuvk4fkd9mo4hntnkav5kd.apps.googleusercontent.com",
+              "client_id": "1011764140696-6jg3kmhdd4esma7qh3r0mt965hqkg2hm.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "41353583974-9mjlk37vo5bsku3p213i1ji8rn9im4ps.apps.googleusercontent.com",
+              "client_id": "1011764140696-4r20jb0mm03gu61uclhvfjjvvodllhbb.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
                 "bundle_id": "com.attendo.attendance"

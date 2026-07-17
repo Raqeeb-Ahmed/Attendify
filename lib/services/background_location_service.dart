@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import '../utils/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'location_service.dart';
@@ -24,6 +25,8 @@ class BackgroundLocationService {
   final LocationService _locationService = LocationService();
   final AttendanceService _attendanceService = AttendanceService();
   bool _isTracking = false;
+
+  static DateTime? _lastHistoryWriteTime;
 
   String? _currentUid;
   String? _currentName;
@@ -192,11 +195,21 @@ class BackgroundLocationService {
 
       _wasInsideRadius = isInsideRadius;
 
-      // Update locations collection (web app compatible)
-      await _db.collection('locations').add(locationData);
+      // Update locations collection in Firestore (throttled to 10 minutes)
+      final nowTime = DateTime.now();
+      bool shouldLogHistory = false;
+      if (_lastHistoryWriteTime == null || nowTime.difference(_lastHistoryWriteTime!).inMinutes >= 10) {
+        shouldLogHistory = true;
+      }
 
-      // Also update live location document for real-time tracking
-      await _db.collection('locations').doc('${_currentUid}_latest').set(locationData);
+      if (shouldLogHistory) {
+        await _db.collection('locations').add(locationData);
+        _lastHistoryWriteTime = nowTime;
+        debugPrint('[BackgroundLocationService] Logged movement coordinate to Firestore history');
+      }
+
+      // Update live latest location in Realtime Database instead of Firestore to save quota
+      await FirebaseDatabase.instance.ref('locations/${_currentUid}_latest').set(locationData);
 
       // Update time tracking on attendance (if checked in)
       /// await _attendanceService.updateTimeTracking(_currentUid!, now, isInsideRadius, nowIso);

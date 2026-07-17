@@ -15,6 +15,11 @@ class AttendanceService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
 
+  static final Map<String, DateTime> _lastSyncTimes = {};
+  static final Map<String, String> _lastStatuses = {};
+  static final Map<String, DateTime> _lastFirestoreSyncTimes = {};
+  static DateTime? _lastHistoryWriteTime;
+
   // Office Configuration
   double get officeLat => AppConfig.officeLat;
   double get officeLng => AppConfig.officeLng;
@@ -247,11 +252,22 @@ class AttendanceService {
     try {
       final attendanceId = getTodayAttendanceId(userId);
       final docRef = _db.collection('attendance').doc(attendanceId);
-      final docSnap = await docRef.get();
 
-      if (!docSnap.exists) return null;
+      Map<String, dynamic>? attData;
+      final rtdbRef = _rtdb.ref('attendance/$attendanceId');
+      try {
+        final rtdbSnap = await rtdbRef.get();
+        if (rtdbSnap.exists) {
+          attData = Map<String, dynamic>.from(rtdbSnap.value as Map);
+        }
+      } catch (_) {}
 
-      final attData = docSnap.data()!;
+      if (attData == null) {
+        final docSnap = await docRef.get();
+        if (!docSnap.exists) return null;
+        attData = docSnap.data()!;
+      }
+
       if (attData['checkOutTime'] != null) return attData;
 
       final nowIso = DateTime.now().toIso8601String();
@@ -261,13 +277,25 @@ class AttendanceService {
           60 *
           1000;
 
-      await docRef.update({
+      final updates = {
         'checkOutTime': nowIso,
         'lastActive': nowIso,
         'sessionStatus': 'ended',
         'totalHours': totalHours,
         'insideOfficeTime': insideOfficeMs,
-      });
+      };
+
+      await docRef.update(updates);
+
+      // Also update RTDB
+      try {
+        await rtdbRef.update(updates);
+      } catch (_) {}
+
+      // Clear memory cache
+      _lastSyncTimes.remove(attendanceId);
+      _lastStatuses.remove(attendanceId);
+      _lastFirestoreSyncTimes.remove(attendanceId);
 
       // Clear local tracking cache for today
       try {
@@ -457,6 +485,15 @@ class AttendanceService {
       final now = DateTime.now();
       final nowIso = now.toIso8601String();
 
+      Map<String, dynamic>? cachedData;
+      final rtdbRef = _rtdb.ref('attendance/$attendanceId');
+      try {
+        final rtdbSnap = await rtdbRef.get();
+        if (rtdbSnap.exists) {
+          cachedData = Map<String, dynamic>.from(rtdbSnap.value as Map);
+        }
+      } catch (_) {}
+
       bool didCheckout = false;
 
       await _db.runTransaction((tx) async {
@@ -465,24 +502,42 @@ class AttendanceService {
         final attData = docSnap.data()!;
         if (attData['checkOutTime'] != null) return; // Already checked out
 
+        final insideTime =
+            (cachedData?['insideTime'] as num?)?.toInt() ??
+            (attData['insideTime'] as num?)?.toInt() ??
+            0;
+        final offlineTime =
+            (cachedData?['offlineTime'] as num?)?.toInt() ??
+            (attData['offlineTime'] as num?)?.toInt() ??
+            0;
+        final extraHours =
+            (cachedData?['extraHours'] as num?)?.toInt() ??
+            (attData['extraHours'] as num?)?.toInt() ??
+            0;
+
         final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
-        final insideOfficeMs =
-            ((attData['insideTime'] ?? 0) + (attData['offlineTime'] ?? 0)) *
-            60 *
-            1000;
+        final insideOfficeMs = (insideTime + offlineTime) * 60 * 1000;
         final checkoutMins = now.hour * 60 + now.minute;
         final overtimeMins = checkoutMins > officeEndMinutes
             ? checkoutMins - officeEndMinutes
             : 0;
 
-        tx.update(docRef, {
+        final updates = {
           'checkOutTime': nowIso,
           'lastActive': nowIso,
           'sessionStatus': 'auto-checkout',
           'totalHours': totalHours,
           'insideOfficeTime': insideOfficeMs,
-          'extraHours': (attData['extraHours'] ?? 0) + overtimeMins,
-        });
+          'extraHours': extraHours + overtimeMins,
+        };
+
+        tx.update(docRef, updates);
+
+        // Also update RTDB
+        try {
+          rtdbRef.update(updates);
+        } catch (_) {}
+
         didCheckout = true;
       });
 
@@ -566,15 +621,25 @@ class AttendanceService {
       final now = DateTime.now();
       final nowIso = now.toIso8601String();
 
-      // Store location
-      await _db.collection('locations').add({
-        'userId': userId,
-        'timestamp': nowIso,
-        'lat': latitude,
-        'lng': longitude,
-        'distanceFromOffice': distFromOffice.round(),
-        'insideRadius': isInside,
-      });
+      final nowTime = DateTime.now();
+      bool shouldLogHistory = false;
+      if (_lastHistoryWriteTime == null ||
+          nowTime.difference(_lastHistoryWriteTime!).inMinutes >= 10) {
+        shouldLogHistory = true;
+      }
+
+      if (shouldLogHistory) {
+        // Store location
+        await _db.collection('locations').add({
+          'userId': userId,
+          'timestamp': nowIso,
+          'lat': latitude,
+          'lng': longitude,
+          'distanceFromOffice': distFromOffice.round(),
+          'insideRadius': isInside,
+        });
+        _lastHistoryWriteTime = nowTime;
+      }
 
       // Update time tracking on attendance
       await _updateTimeTrackingInternal(userId, now, isInside, nowIso);
@@ -645,44 +710,28 @@ class AttendanceService {
     bool shouldWrite = false;
     final currentStatus = isInside ? 'present' : 'outside';
 
-    try {
-      final lastSyncStr = await FlutterForegroundTask.getData<String>(
-        key: 'attendance_last_sync_$attendanceId',
-      );
-      final lastStatus = await FlutterForegroundTask.getData<String>(
-        key: 'attendance_last_status_$attendanceId',
-      );
+    if (forceWrite) {
+      shouldWrite = true;
+    } else {
+      final lastSync = _lastSyncTimes[attendanceId];
+      final lastStatus = _lastStatuses[attendanceId];
 
-      if (lastSyncStr == null ||
-          lastSyncStr.isEmpty ||
-          lastStatus == null ||
-          lastStatus.isEmpty ||
-          forceWrite) {
+      if (lastSync == null || lastStatus == null) {
         shouldWrite = true;
       } else {
-        final lastSync = DateTime.parse(lastSyncStr);
         final elapsedMins = now.difference(lastSync).inMinutes;
 
         if (currentStatus != lastStatus) {
-          shouldWrite = true; // geofence status transition
+          shouldWrite = true; // status transition
         } else if (elapsedMins >= 5) {
           shouldWrite = true; // 5-minute timeout boundary reached
         }
       }
+    }
 
-      if (shouldWrite) {
-        await FlutterForegroundTask.saveData(
-          key: 'attendance_last_sync_$attendanceId',
-          value: now.toIso8601String(),
-        );
-        await FlutterForegroundTask.saveData(
-          key: 'attendance_last_status_$attendanceId',
-          value: currentStatus,
-        );
-      }
-    } catch (e) {
-      debugPrint('[AttendanceService] Storage read error: $e');
-      shouldWrite = true; // Fallback to writing in case of errors
+    if (shouldWrite) {
+      _lastSyncTimes[attendanceId] = now;
+      _lastStatuses[attendanceId] = currentStatus;
     }
 
     if (!shouldWrite) {
@@ -693,12 +742,32 @@ class AttendanceService {
     }
 
     final attRef = _db.collection('attendance').doc(attendanceId);
-    final attSnap = await attRef.get();
+    Map<String, dynamic>? attData;
 
-    if (!attSnap.exists) return;
+    final rtdbRef = _rtdb.ref('attendance/$attendanceId');
+    try {
+      final rtdbSnap = await rtdbRef.get();
+      if (rtdbSnap.exists) {
+        attData = Map<String, dynamic>.from(rtdbSnap.value as Map);
+      } else {
+        final attSnap = await attRef.get();
+        if (attSnap.exists) {
+          attData = attSnap.data();
+          if (attData != null) {
+            // Initialize RTDB cache
+            await rtdbRef.set(attData);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[AttendanceService] RTDB cache read error: $e');
+      final attSnap = await attRef.get();
+      if (attSnap.exists) {
+        attData = attSnap.data();
+      }
+    }
 
-    final attData = attSnap.data()!;
-    // If there is no checkInTime yet, nothing to track against.
+    if (attData == null) return;
     if (attData['checkInTime'] == null) return;
 
     final alreadyCheckedOut = attData['checkOutTime'] != null;
@@ -785,7 +854,6 @@ class AttendanceService {
           // Only count the offline gap that fell within office hours
           if (officeMins > 0) {
             updates['offlineTime'] = (attData['offlineTime'] ?? 0) + officeMins;
-            // Also add offline minutes to insideTime as requested (treated as inside office while checked in)
             updates['insideTime'] = (attData['insideTime'] ?? 0) + officeMins;
           }
         }
@@ -799,7 +867,6 @@ class AttendanceService {
     updates['insideOfficeTime'] =
         (currentInside + currentOffline) * 60 * 1000; // ms
 
-    // totalHours: freeze after checkout — use checkOutTime, not nowIso
     if (alreadyCheckedOut) {
       updates['totalHours'] = _computeTotalHours(
         attData['checkInTime'],
@@ -812,13 +879,42 @@ class AttendanceService {
       );
     }
 
-    // Update location status metadata
     updates['currentStatus'] = isInside ? 'present' : 'outside';
     updates['atOffice'] = isInside;
     updates['lastLocationUpdate'] = nowIso;
     updates['lastActive'] = nowIso;
 
-    await attRef.update(updates);
+    // Save to RTDB Cache (Free writes)
+    try {
+      await rtdbRef.update(updates);
+    } catch (e) {
+      debugPrint('[AttendanceService] RTDB cache write error: $e');
+    }
+
+    // Dual-Write Strategy: Determine if we should also sync to Firestore
+    bool syncToFirestore = false;
+    if (forceWrite ||
+        updates['currentStatus'] != attData['currentStatus'] ||
+        alreadyCheckedOut) {
+      syncToFirestore = true;
+    } else {
+      final lastSync = _lastFirestoreSyncTimes[attendanceId];
+      if (lastSync == null || now.difference(lastSync).inMinutes >= 30) {
+        syncToFirestore = true;
+      }
+    }
+
+    if (syncToFirestore) {
+      await attRef.update(updates);
+      _lastFirestoreSyncTimes[attendanceId] = now;
+      debugPrint(
+        '[AttendanceService] Syncing time tracking to Firestore (Quota Throttled)',
+      );
+    } else {
+      debugPrint(
+        '[AttendanceService] Time tracking updated in RTDB cache only',
+      );
+    }
   }
 
   // ── Stream Attendance History ──

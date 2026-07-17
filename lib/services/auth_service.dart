@@ -22,17 +22,19 @@ class AuthService {
       if (kIsWeb) {
         debugPrint("Running on Web. Triggering Firebase signInWithPopup...");
         final GoogleAuthProvider googleProvider = GoogleAuthProvider();
-        googleProvider.setCustomParameters({
-          'prompt': 'select_account'
-        });
-        final UserCredential userCredential = await _auth.signInWithPopup(googleProvider);
+        googleProvider.setCustomParameters({'prompt': 'select_account'});
+        final UserCredential userCredential = await _auth.signInWithPopup(
+          googleProvider,
+        );
         debugPrint("Firebase Web Sign-In Successful");
         return userCredential;
       }
 
       // On non-Web, check if authenticate is supported
       if (!_googleSignIn.supportsAuthenticate()) {
-        debugPrint("Google Sign-In authentication not supported on this device.");
+        debugPrint(
+          "Google Sign-In authentication not supported on this device.",
+        );
         return null;
       }
 
@@ -81,7 +83,9 @@ class AuthService {
       if (currentUser != null) {
         // Remove push notification token before signing out (Skip on Web)
         if (!kIsWeb) {
-          await PushNotificationService.instance.removeUserToken(currentUser.uid);
+          await PushNotificationService.instance.removeUserToken(
+            currentUser.uid,
+          );
         }
       }
 

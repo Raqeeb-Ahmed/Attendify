@@ -3,23 +3,21 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>41353583974-9mjlk37vo5bsku3p213i1ji8rn9im4ps.apps.googleusercontent.com</string>
+	<string>1011764140696-4r20jb0mm03gu61uclhvfjjvvodllhbb.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.41353583974-9mjlk37vo5bsku3p213i1ji8rn9im4ps</string>
-	<key>ANDROID_CLIENT_ID</key>
-	<string>41353583974-th9ti2cvdki48ntj22gdjma9e58lo2e9.apps.googleusercontent.com</string>
+	<string>com.googleusercontent.apps.1011764140696-4r20jb0mm03gu61uclhvfjjvvodllhbb</string>
 	<key>API_KEY</key>
-	<string>AIzaSyBFr6LdDX9fuJ8NgW13maH1QVD_1QXja7Y</string>
+	<string>AIzaSyAtmUF-hQoIWNvrjGQiMDccED-sLLHJN7A</string>
 	<key>GCM_SENDER_ID</key>
-	<string>41353583974</string>
+	<string>1011764140696</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.attendo.attendance</string>
 	<key>PROJECT_ID</key>
-	<string>attendify-2e534</string>
+	<string>attendify-aea1d</string>
 	<key>STORAGE_BUCKET</key>
-	<string>attendify-2e534.firebasestorage.app</string>
+	<string>attendify-aea1d.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -31,8 +29,8 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:41353583974:ios:5623fae02c5f2ea7d87ca7</string>
+	<string>1:1011764140696:ios:aaa2fd33f2d6fc8f59ceed</string>
 	<key>DATABASE_URL</key>
-	<string>https://attendify-2e534-default-rtdb.firebaseio.com</string>
+	<string>https://attendify-aea1d-default-rtdb.firebaseio.com</string>
 </dict>
 </plist>

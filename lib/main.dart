@@ -29,13 +29,14 @@ Future<void> main() async {
   if (kIsWeb) {
     await Firebase.initializeApp(
       options: const FirebaseOptions(
-        apiKey: "AIzaSyDqDCmvqkVXO0sS8eL6gItD-YG4Ho0UEcU",
-        authDomain: "attendify-2e534.firebaseapp.com",
-        databaseURL: "https://attendify-2e534-default-rtdb.firebaseio.com",
-        projectId: "attendify-2e534",
-        storageBucket: "attendify-2e534.firebasestorage.app",
-        messagingSenderId: "41353583974",
-        appId: "1:41353583974:web:e4e3752e534606f2e27c06",
+        apiKey: "AIzaSyAEcHzc2R6p4aVN2IJii8_TfCF8AO75EBQ",
+        authDomain: "attendify-aea1d.firebaseapp.com",
+        databaseURL: "https://attendify-aea1d-default-rtdb.firebaseio.com",
+        projectId: "attendify-aea1d",
+        storageBucket: "attendify-aea1d.firebasestorage.app",
+        messagingSenderId: "1011764140696",
+        appId: "1:1011764140696:web:f45d5f268e34139d59ceed",
+        measurementId: "G-PFGSVV6QYG",
       ),
     );
   } else {

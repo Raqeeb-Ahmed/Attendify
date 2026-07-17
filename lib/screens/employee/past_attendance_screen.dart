@@ -744,7 +744,7 @@ class _PastAttendanceScreenState extends State<PastAttendanceScreen> {
     final insideTimeVal = (record['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (record['outsideTime'] as num?)?.toInt() ?? 0;
     final offlineTime = (record['offlineTime'] as num?)?.toInt() ?? 0;
-    final insideTime = insideTimeVal + offlineTime;
+    final insideTime = insideTimeVal;
     final extraHours = record['extraHours'];
     final totalHours = (record['totalHours'] as num?)?.toDouble() ?? 0.0;
 

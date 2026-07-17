@@ -464,9 +464,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     final status = d['status'] as String? ?? 'pending';
     final checkIn = d['checkInTime'] as String?;
     final checkOut = d['checkOutTime'] as String?;
-    final insideTimeVal = (d['insideTime'] as num?)?.toInt() ?? 0;
-    final offlineTimeVal = (d['offlineTime'] as num?)?.toInt() ?? 0;
-    final insideTime = insideTimeVal + offlineTimeVal;
+    final insideTime = (d['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (d['outsideTime'] as num?)?.toInt() ?? 0;
     final totalHours = (d['totalHours'] as num?)?.toDouble() ?? 0.0;
     final atOffice = d['atOffice'] as bool? ?? false;
@@ -1629,10 +1627,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     final status = record['status'] as String? ?? 'pending';
     final checkIn = record['checkInTime'] as String?;
     final checkOut = record['checkOutTime'] as String?;
-    final insideTimeVal = (record['insideTime'] as num?)?.toInt() ?? 0;
+    final insideTime = (record['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (record['outsideTime'] as num?)?.toInt() ?? 0;
     final offlineTime = (record['offlineTime'] as num?)?.toInt() ?? 0;
-    final insideTime = insideTimeVal + offlineTime;
 
     Color statusColor;
     String statusLabel;
@@ -1850,270 +1847,283 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                   .where('date', isLessThanOrEqualTo: endStr)
                   .snapshots(),
               builder: (context, attendanceSnap) {
-            final docs = attendanceSnap.data?.docs ?? [];
-            final monthData = <String, Map<String, dynamic>>{};
+                final docs = attendanceSnap.data?.docs ?? [];
+                final monthData = <String, Map<String, dynamic>>{};
 
-            int present = 0, late = 0, outside = 0;
-            for (var doc in docs) {
-              final data = doc.data() as Map<String, dynamic>;
-              if (data['date'] != null) {
-                monthData[data['date'] as String] = data;
-                final status = (data['status'] as String?)?.toUpperCase() ?? '';
-                if (status == 'PRESENT') {
-                  present++;
-                } else if (status == 'LATE') {
-                  late++;
-                } else if (status == 'OUTSIDE') {
-                  outside++;
+                int present = 0, late = 0, outside = 0;
+                for (var doc in docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  if (data['date'] != null) {
+                    monthData[data['date'] as String] = data;
+                    final status =
+                        (data['status'] as String?)?.toUpperCase() ?? '';
+                    if (status == 'PRESENT') {
+                      present++;
+                    } else if (status == 'LATE') {
+                      late++;
+                    } else if (status == 'OUTSIDE') {
+                      outside++;
+                    }
+                  }
                 }
-              }
-            }
-            final totalRecords = present + late + outside;
-            final days = _getDaysInMonth();
+                final totalRecords = present + late + outside;
+                final days = _getDaysInMonth();
 
-            return SingleChildScrollView(
-              padding: EdgeInsets.all(isMobile ? 16 : 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Select Employee',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        dropdownWidget,
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: isMobile ? 2 : 4,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: isMobile ? 2.0 : 1.25,
+                return SingleChildScrollView(
+                  padding: EdgeInsets.all(isMobile ? 16 : 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSummaryCard(
-                        'Present',
-                        '$present',
-                        Icons.check_circle,
-                        const Color(0xFF22C55E),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Select Employee',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            dropdownWidget,
+                          ],
+                        ),
                       ),
-                      _buildSummaryCard(
-                        'Late',
-                        '$late',
-                        Icons.warning_amber,
-                        const Color(0xFFF59E0B),
-                      ),
-                      _buildSummaryCard(
-                        'Outside',
-                        '$outside',
-                        Icons.cancel,
-                        const Color(0xFFF97316),
-                      ),
-                      _buildSummaryCard(
-                        'Rate',
-                        totalRecords > 0
-                            ? '${(((present + late) / totalRecords) * 100).round()}%'
-                            : '0%',
-                        Icons.trending_up,
-                        const Color(0xFF6366F1),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.02),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEEF2FF),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.calendar_today,
-                                  color: Color(0xFF6366F1),
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Text(
-                                  'Attendance Calendar',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1E293B),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.chevron_left, size: 20),
-                                onPressed: () {
-                                  setState(() {
-                                    _employeeCalendarMonth = DateTime(
-                                      _employeeCalendarMonth.year,
-                                      _employeeCalendarMonth.month - 1,
-                                    );
-                                  });
-                                },
-                              ),
-                              Text(
-                                DateFormat(
-                                  'MMM yyyy',
-                                ).format(_employeeCalendarMonth),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1E293B),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.chevron_right, size: 20),
-                                onPressed: () {
-                                  setState(() {
-                                    _employeeCalendarMonth = DateTime(
-                                      _employeeCalendarMonth.year,
-                                      _employeeCalendarMonth.month + 1,
-                                    );
-                                  });
-                                },
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.picture_as_pdf_rounded,
-                                  color: Color(0xFF6366F1),
-                                  size: 22,
-                                ),
-                                tooltip: 'Download PDF',
-                                onPressed: () =>
-                                    _generateEmployeePDF(users, monthData),
-                              ),
-                            ],
+                      GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: isMobile ? 2 : 4,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: isMobile ? 2.0 : 1.25,
+                        children: [
+                          _buildSummaryCard(
+                            'Present',
+                            '$present',
+                            Icons.check_circle,
+                            const Color(0xFF22C55E),
                           ),
+                          _buildSummaryCard(
+                            'Late',
+                            '$late',
+                            Icons.warning_amber,
+                            const Color(0xFFF59E0B),
+                          ),
+                          _buildSummaryCard(
+                            'Outside',
+                            '$outside',
+                            Icons.cancel,
+                            const Color(0xFFF97316),
+                          ),
+                          _buildSummaryCard(
+                            'Rate',
+                            totalRecords > 0
+                                ? '${(((present + late) / totalRecords) * 100).round()}%'
+                                : '0%',
+                            Icons.trending_up,
+                            const Color(0xFF6366F1),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.02),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-                                    .map((day) {
-                                      return Expanded(
-                                        child: Center(
-                                          child: Text(
-                                            day,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(0xFF94A3B8),
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEEF2FF),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.calendar_today,
+                                      color: Color(0xFF6366F1),
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Expanded(
+                                    child: Text(
+                                      'Attendance Calendar',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF1E293B),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.chevron_left,
+                                      size: 20,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _employeeCalendarMonth = DateTime(
+                                          _employeeCalendarMonth.year,
+                                          _employeeCalendarMonth.month - 1,
+                                        );
+                                      });
+                                    },
+                                  ),
+                                  Text(
+                                    DateFormat(
+                                      'MMM yyyy',
+                                    ).format(_employeeCalendarMonth),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.chevron_right,
+                                      size: 20,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _employeeCalendarMonth = DateTime(
+                                          _employeeCalendarMonth.year,
+                                          _employeeCalendarMonth.month + 1,
+                                        );
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.picture_as_pdf_rounded,
+                                      color: Color(0xFF6366F1),
+                                      size: 22,
+                                    ),
+                                    tooltip: 'Download PDF',
+                                    onPressed: () =>
+                                        _generateEmployeePDF(users, monthData),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children:
+                                        ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(
+                                          (day) {
+                                            return Expanded(
+                                              child: Center(
+                                                child: Text(
+                                                  day,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Color(0xFF94A3B8),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ).toList(),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  attendanceSnap.connectionState ==
+                                          ConnectionState.waiting
+                                      ? const SizedBox(
+                                          height: 220,
+                                          child: Center(
+                                            child: CircularProgressIndicator(
+                                              color: Color(0xFF6366F1),
                                             ),
                                           ),
+                                        )
+                                      : _buildEmployeeCalendarGrid(
+                                          days,
+                                          monthData,
+                                          approvedLeaves,
                                         ),
-                                      );
-                                    })
-                                    .toList(),
+                                ],
                               ),
-                              const SizedBox(height: 12),
-                              attendanceSnap.connectionState ==
-                                      ConnectionState.waiting
-                                  ? const SizedBox(
-                                      height: 220,
-                                      child: Center(
-                                        child: CircularProgressIndicator(
-                                          color: Color(0xFF6366F1),
-                                        ),
-                                      ),
-                                    )
-                                  : _buildEmployeeCalendarGrid(days, monthData, approvedLeaves),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.vertical(
-                              bottom: Radius.circular(16),
                             ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              _buildLegendItem(
-                                'P',
-                                'Present',
-                                const Color(0xFF22C55E),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.vertical(
+                                  bottom: Radius.circular(16),
+                                ),
                               ),
-                              _buildLegendItem(
-                                'L',
-                                'Late',
-                                const Color(0xFFF59E0B),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children: [
+                                  _buildLegendItem(
+                                    'P',
+                                    'Present',
+                                    const Color(0xFF22C55E),
+                                  ),
+                                  _buildLegendItem(
+                                    'L',
+                                    'Late',
+                                    const Color(0xFFF59E0B),
+                                  ),
+                                  _buildLegendItem(
+                                    'O',
+                                    'Outside',
+                                    const Color(0xFFF97316),
+                                  ),
+                                  _buildLegendItem(
+                                    'LV',
+                                    'Leave',
+                                    const Color(0xFFA855F7),
+                                  ),
+                                ],
                               ),
-                              _buildLegendItem(
-                                'O',
-                                'Outside',
-                                const Color(0xFFF97316),
-                              ),
-                              _buildLegendItem(
-                                'LV',
-                                'Leave',
-                                const Color(0xFFA855F7),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      _buildDateRangeAudit(_selectedUid!, users),
+                    ],
                   ),
-                  _buildDateRangeAudit(_selectedUid!, users),
-                ],
-              ),
+                );
+              },
             );
           },
         );
       },
     );
-  },
-);
-}
+  }
 
   void _showDateDetails(DateTime day, Map<String, dynamic> record) {
     final checkIn = record['checkInTime'] as String?;
@@ -2122,7 +2132,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     final insideTimeVal = (record['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (record['outsideTime'] as num?)?.toInt() ?? 0;
     final offlineTime = (record['offlineTime'] as num?)?.toInt() ?? 0;
-    final insideTime = insideTimeVal + offlineTime;
+    final insideTime = insideTimeVal;
     final totalHours = (record['totalHours'] as num?)?.toDouble() ?? 0.0;
     final atOffice = record['atOffice'] as bool? ?? false;
     final checkInMethod = record['checkInMethod'] as String? ?? 'manual';
@@ -2731,7 +2741,8 @@ class _EmployeeCalendarDialogState extends State<_EmployeeCalendarDialog> {
                             final start = data['startDate'] as String?;
                             final end = data['endDate'] as String?;
                             if (start != null && end != null) {
-                              if (dayStr.compareTo(start) >= 0 && dayStr.compareTo(end) <= 0) {
+                              if (dayStr.compareTo(start) >= 0 &&
+                                  dayStr.compareTo(end) <= 0) {
                                 isLeaveDay = true;
                                 break;
                               }
@@ -2898,7 +2909,7 @@ class _EmployeeCalendarDialogState extends State<_EmployeeCalendarDialog> {
     final insideTimeVal = (record['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (record['outsideTime'] as num?)?.toInt() ?? 0;
     final offlineTime = (record['offlineTime'] as num?)?.toInt() ?? 0;
-    final insideTime = insideTimeVal + offlineTime;
+    final insideTime = insideTimeVal;
     final totalHours = (record['totalHours'] as num?)?.toDouble() ?? 0.0;
     final atOffice = record['atOffice'] as bool? ?? false;
     final checkInMethod = record['checkInMethod'] as String? ?? 'manual';

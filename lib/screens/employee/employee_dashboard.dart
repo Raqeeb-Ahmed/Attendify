@@ -853,7 +853,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
           const SizedBox(height: 12),
           _timeRow(
             'Inside Office',
-            formatMins((_todayData?['insideTime'] ?? 0) + (_todayData?['offlineTime'] ?? 0)),
+            formatMins(_todayData?['insideTime'] ?? 0),
             const Color(0xFF22C55E),
           ),
           _timeRow(
@@ -1354,7 +1354,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
           Expanded(
             flex: 2,
             child: Text(
-              formatMins(((d['insideTime'] as num?)?.toInt() ?? 0) + ((d['offlineTime'] as num?)?.toInt() ?? 0)),
+              formatMins(d['insideTime']),
               style: cellStyle.copyWith(color: const Color(0xFF22C55E)),
             ),
           ),
@@ -1422,7 +1422,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
             children: [
               _mobileLogItem('In', inStr),
               _mobileLogItem('Out', outStr),
-              _mobileLogItem('Inside', formatMins(((d['insideTime'] as num?)?.toInt() ?? 0) + ((d['offlineTime'] as num?)?.toInt() ?? 0))),
+              _mobileLogItem('Inside', formatMins(d['insideTime'])),
               _mobileLogItem('Outside', formatMins(d['outsideTime'])),
               if ((d['extraHours'] is num) && (d['extraHours'] as num) > 0)
                 _mobileLogItem('Extra', formatMins(d['extraHours'])),

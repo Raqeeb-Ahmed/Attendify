@@ -367,7 +367,7 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
     final insideTimeVal = (att?['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (att?['outsideTime'] as num?)?.toInt() ?? 0;
     final offlineTime = (att?['offlineTime'] as num?)?.toInt() ?? 0;
-    final insideTime = insideTimeVal + offlineTime;
+    final insideTime = insideTimeVal;
     final extraHours = (att?['extraHours'] as num?)?.toInt() ?? 0;
 
     return Column(

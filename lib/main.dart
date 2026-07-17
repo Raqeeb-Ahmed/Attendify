@@ -21,7 +21,7 @@ Future<void> main() async {
 
   // Load environment variables
   try {
-    await dotenv.load(fileName: ".env");
+    await dotenv.load(fileName: "env.txt");
   } catch (e) {
     debugPrint("Warning: Could not load .env file: $e");
   }

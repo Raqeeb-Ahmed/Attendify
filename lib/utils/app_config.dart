@@ -7,7 +7,7 @@ class AppConfig {
   static const String allowedDomain = 'gmail.com';
   static String get googleServerClientId =>
       dotenv.env['GOOGLE_SERVER_CLIENT_ID'] ??
-      '1011764140696-f11ro7v81riu3n56m1derfmiasf7c5up.apps.googleusercontent.com';
+      '1011764140696-948gaer6e9imdg4n0p12d22a3ctmnth9.apps.googleusercontent.com';
 
   /// Office WiFi SSID names for auto check-in detection
   /// Add your office WiFi network names here (case insensitive)

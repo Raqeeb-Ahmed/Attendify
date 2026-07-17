@@ -2321,12 +2321,8 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
         EmployeeMapData(
           name: userData['name'] as String? ?? 'Unknown',
           email: userData['email'] as String? ?? '',
-          lat:
-              (loc?['lat'] as num?)?.toDouble() ??
-              widget.officeLat,
-          lng:
-              (loc?['lng'] as num?)?.toDouble() ??
-              widget.officeLng,
+          lat: (loc?['lat'] as num?)?.toDouble(),
+          lng: (loc?['lng'] as num?)?.toDouble(),
           status: _mapStatus(
             checkInStatus,
             isOnline,
@@ -2595,7 +2591,9 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                                 ),
                               ),
                             ),
-                            ...employees.map((emp) {
+                            ...employees
+                                .where((emp) => emp.lat != null && emp.lng != null)
+                                .map((emp) {
                               final markerColor =
                                   emp.status == EmployeeStatus.present
                                   ? const Color(0xFF22C55E)
@@ -2605,7 +2603,7 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                                   ? const Color(0xFFF97316)
                                   : const Color(0xFF94A3B8);
                               return Marker(
-                                point: LatLng(emp.lat, emp.lng),
+                                point: LatLng(emp.lat!, emp.lng!),
                                 width: 40,
                                 height: 40,
                                 child: GestureDetector(
@@ -2835,8 +2833,8 @@ enum EmployeeStatus { present, late_, outside, pending, offline }
 class EmployeeMapData {
   final String name;
   final String email;
-  final double lat;
-  final double lng;
+  final double? lat;
+  final double? lng;
   final EmployeeStatus status;
   final Color avatarColor;
   final bool isOnline;
@@ -2846,8 +2844,8 @@ class EmployeeMapData {
   EmployeeMapData({
     required this.name,
     required this.email,
-    required this.lat,
-    required this.lng,
+    this.lat,
+    this.lng,
     required this.status,
     required this.avatarColor,
     this.isOnline = false,

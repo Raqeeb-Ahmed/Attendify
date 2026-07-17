@@ -26,6 +26,7 @@ class _LocationTaskHandler extends TaskHandler {
   static double? _lastLoggedLng;
   static DateTime? _lastHistoryWriteTime;
   static bool _checkedOutCached = false;
+  static String? _lastNotifText;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -129,10 +130,14 @@ class _LocationTaskHandler extends TaskHandler {
         );
         await OfflineLocationService().cacheLocation(locationData);
 
-        await FlutterForegroundTask.updateService(
-          notificationTitle: 'Work session active (Offline)',
-          notificationText: 'Offline tracking active. Cached location locally.',
-        );
+        const notifText = 'Offline tracking active. Cached location locally.';
+        if (_lastNotifText != notifText) {
+          await FlutterForegroundTask.updateService(
+            notificationTitle: 'Work session active (Offline)',
+            notificationText: notifText,
+          );
+          _lastNotifText = notifText;
+        }
         return;
       }
 
@@ -227,10 +232,14 @@ class _LocationTaskHandler extends TaskHandler {
               '[ForegroundTask] Auto-checkout done. Overtime: ${overtimeMins}m',
             );
 
-            await FlutterForegroundTask.updateService(
-              notificationTitle: 'Work session ended',
-              notificationText: 'Auto checked-out. Overtime tracking active.',
-            );
+            const notifText = 'Auto checked-out. Overtime tracking active.';
+            if (_lastNotifText != notifText) {
+              await FlutterForegroundTask.updateService(
+                notificationTitle: 'Work session ended',
+                notificationText: notifText,
+              );
+              _lastNotifText = notifText;
+            }
             return; // Don't do more time tracking this cycle
           }
         }
@@ -241,10 +250,13 @@ class _LocationTaskHandler extends TaskHandler {
 
       // Update notification text with neutral wording
       final notifText = isInside ? 'You are at the office' : 'You are away';
-      await FlutterForegroundTask.updateService(
-        notificationTitle: 'Work session active',
-        notificationText: notifText,
-      );
+      if (_lastNotifText != notifText) {
+        await FlutterForegroundTask.updateService(
+          notificationTitle: 'Work session active',
+          notificationText: notifText,
+        );
+        _lastNotifText = notifText;
+      }
 
       debugPrint('[ForegroundTask] $status (${distance.round()}m)');
     } catch (e) {

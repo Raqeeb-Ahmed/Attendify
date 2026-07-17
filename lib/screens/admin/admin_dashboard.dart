@@ -1167,7 +1167,7 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
         final insideMinsVal = (data?['insideTime'] as num?)?.toInt() ?? 0;
         final outsideMins = (data?['outsideTime'] as num?)?.toInt() ?? 0;
         final offlineMins = (data?['offlineTime'] as num?)?.toInt() ?? 0;
-        final insideMins = insideMinsVal + offlineMins;
+        final insideMins = insideMinsVal;
         final totalHours = (data?['totalHours'] as num?)?.toDouble() ?? 0.0;
 
         String checkInText = '--:--';

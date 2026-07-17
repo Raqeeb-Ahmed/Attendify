@@ -91,9 +91,7 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
           final data = doc.data() as Map<String, dynamic>;
           final uid = data['userId'] as String?;
           if (uid != null) attMap[uid] = data;
-          insideMinutes +=
-              ((data['insideTime'] as num?)?.toInt() ?? 0) +
-              ((data['offlineTime'] as num?)?.toInt() ?? 0);
+          insideMinutes += (data['insideTime'] as num?)?.toInt() ?? 0;
           outsideMinutes += (data['outsideTime'] as num?)?.toInt() ?? 0;
           offlineMinutes += (data['offlineTime'] as num?)?.toInt() ?? 0;
           extraMinutes += (data['extraHours'] as num?)?.toInt() ?? 0;

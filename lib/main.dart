@@ -28,15 +28,15 @@ Future<void> main() async {
 
   if (kIsWeb) {
     await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: "AIzaSyAEcHzc2R6p4aVN2IJii8_TfCF8AO75EBQ",
-        authDomain: "attendify-aea1d.firebaseapp.com",
-        databaseURL: "https://attendify-aea1d-default-rtdb.firebaseio.com",
-        projectId: "attendify-aea1d",
-        storageBucket: "attendify-aea1d.firebasestorage.app",
-        messagingSenderId: "1011764140696",
-        appId: "1:1011764140696:web:f45d5f268e34139d59ceed",
-        measurementId: "G-PFGSVV6QYG",
+      options: FirebaseOptions(
+        apiKey: dotenv.env['FIREBASE_WEB_API_KEY'] ?? '',
+        authDomain: dotenv.env['FIREBASE_WEB_AUTH_DOMAIN'] ?? '',
+        databaseURL: dotenv.env['FIREBASE_WEB_DATABASE_URL'] ?? '',
+        projectId: dotenv.env['FIREBASE_WEB_PROJECT_ID'] ?? '',
+        storageBucket: dotenv.env['FIREBASE_WEB_STORAGE_BUCKET'] ?? '',
+        messagingSenderId: dotenv.env['FIREBASE_WEB_MESSAGING_SENDER_ID'] ?? '',
+        appId: dotenv.env['FIREBASE_WEB_APP_ID'] ?? '',
+        measurementId: dotenv.env['FIREBASE_WEB_MEASUREMENT_ID'] ?? '',
       ),
     );
   } else {

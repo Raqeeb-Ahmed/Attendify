@@ -1,9 +1,12 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AppConfig {
   static const double officeLat = 33.717810797788445;
   static const double officeLng = 73.07266545222373;
   static const String officeIP = '203.101.190.122';
   static const String allowedDomain = 'gmail.com';
-  static const String googleServerClientId =
+  static String get googleServerClientId =>
+      dotenv.env['GOOGLE_SERVER_CLIENT_ID'] ??
       '1011764140696-f11ro7v81riu3n56m1derfmiasf7c5up.apps.googleusercontent.com';
 
   /// Office WiFi SSID names for auto check-in detection

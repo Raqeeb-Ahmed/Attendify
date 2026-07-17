@@ -464,7 +464,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     final status = d['status'] as String? ?? 'pending';
     final checkIn = d['checkInTime'] as String?;
     final checkOut = d['checkOutTime'] as String?;
-    final insideTime = (d['insideTime'] as num?)?.toInt() ?? 0;
+    final insideTimeVal = (d['insideTime'] as num?)?.toInt() ?? 0;
+    final offlineTimeVal = (d['offlineTime'] as num?)?.toInt() ?? 0;
+    final insideTime = insideTimeVal + offlineTimeVal;
     final outsideTime = (d['outsideTime'] as num?)?.toInt() ?? 0;
     final totalHours = (d['totalHours'] as num?)?.toDouble() ?? 0.0;
     final atOffice = d['atOffice'] as bool? ?? false;
@@ -1627,9 +1629,10 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     final status = record['status'] as String? ?? 'pending';
     final checkIn = record['checkInTime'] as String?;
     final checkOut = record['checkOutTime'] as String?;
-    final insideTime = (record['insideTime'] as num?)?.toInt() ?? 0;
+    final insideTimeVal = (record['insideTime'] as num?)?.toInt() ?? 0;
     final outsideTime = (record['outsideTime'] as num?)?.toInt() ?? 0;
     final offlineTime = (record['offlineTime'] as num?)?.toInt() ?? 0;
+    final insideTime = insideTimeVal + offlineTime;
 
     Color statusColor;
     String statusLabel;

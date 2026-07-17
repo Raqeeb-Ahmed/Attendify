@@ -1354,7 +1354,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
           Expanded(
             flex: 2,
             child: Text(
-              formatMins(d['insideTime']),
+              formatMins(((d['insideTime'] as num?)?.toInt() ?? 0) + ((d['offlineTime'] as num?)?.toInt() ?? 0)),
               style: cellStyle.copyWith(color: const Color(0xFF22C55E)),
             ),
           ),
@@ -1422,7 +1422,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard>
             children: [
               _mobileLogItem('In', inStr),
               _mobileLogItem('Out', outStr),
-              _mobileLogItem('Inside', formatMins(d['insideTime'])),
+              _mobileLogItem('Inside', formatMins(((d['insideTime'] as num?)?.toInt() ?? 0) + ((d['offlineTime'] as num?)?.toInt() ?? 0))),
               _mobileLogItem('Outside', formatMins(d['outsideTime'])),
               if ((d['extraHours'] is num) && (d['extraHours'] as num) > 0)
                 _mobileLogItem('Extra', formatMins(d['extraHours'])),

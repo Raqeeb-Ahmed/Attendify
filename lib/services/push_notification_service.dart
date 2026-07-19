@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
@@ -205,10 +204,11 @@ class PushNotificationService {
       return;
     }
 
-    if (ServiceAccountConfig.jsonCredentials['project_id'] ==
-        dotenv.env['FCM_PROJECT_ID']) {
+    final credentials = ServiceAccountConfig.jsonCredentials;
+    if ((credentials['project_id'] ?? '').toString().isEmpty ||
+        (credentials['private_key'] ?? '').toString().isEmpty) {
       debugPrint(
-        'FCM Service Account not configured in service_account.dart. Please set your credentials.',
+        'FCM Service Account not configured in env.txt. Please set your credentials.',
       );
       return;
     }
@@ -262,12 +262,16 @@ class PushNotificationService {
                 'notification': {'title': title, 'body': body},
                 'data': data ?? {},
                 'android': {
+                  'priority': 'high',
                   'notification': {
                     'channel_id': 'high_importance_channel',
                     'sound': 'default',
                   },
                 },
                 'apns': {
+                  'headers': {
+                    'apns-priority': '10',
+                  },
                   'payload': {
                     'aps': {
                       'sound': 'default',

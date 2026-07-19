@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
@@ -53,15 +54,15 @@ class PushNotificationService {
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings initializationSettingsDarwin =
         DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
-    );
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        );
     const InitializationSettings initializationSettings =
         InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsDarwin,
-    );
+          android: initializationSettingsAndroid,
+          iOS: initializationSettingsDarwin,
+        );
 
     await _localNotifications.initialize(
       initializationSettings,
@@ -204,11 +205,10 @@ class PushNotificationService {
       return;
     }
 
-    final credentials = ServiceAccountConfig.jsonCredentials;
-    if ((credentials['project_id'] ?? '').toString().isEmpty ||
-        (credentials['private_key'] ?? '').toString().isEmpty) {
+    if (ServiceAccountConfig.jsonCredentials['project_id'] ==
+        dotenv.env['FCM_PROJECT_ID']) {
       debugPrint(
-        'FCM Service Account not configured in env.txt. Please set your credentials.',
+        'FCM Service Account not configured in service_account.dart. Please set your credentials.',
       );
       return;
     }
@@ -269,9 +269,7 @@ class PushNotificationService {
                   },
                 },
                 'apns': {
-                  'headers': {
-                    'apns-priority': '10',
-                  },
+                  'headers': {'apns-priority': '10'},
                   'payload': {
                     'aps': {
                       'sound': 'default',

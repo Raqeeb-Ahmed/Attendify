@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -33,6 +34,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     {'id': 'emergency', 'label': 'Emergency Leave', 'balance': 5},
   ];
 
+  StreamSubscription? _userSubscription;
+  StreamSubscription? _leavesSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +46,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   @override
   void dispose() {
     _reasonController.dispose();
+    _userSubscription?.cancel();
+    _leavesSubscription?.cancel();
     super.dispose();
   }
 
@@ -49,63 +55,67 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     if (user == null) return;
     
     if (mounted) setState(() => _isLoading = true);
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('leaves')
-          .where('userId', isEqualTo: user!.uid)
-          .orderBy('createdAt', descending: true)
-          .get();
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user!.uid)
-          .get();
-      
+    // Listen to leaves list changes in real time
+    _leavesSubscription?.cancel();
+    _leavesSubscription = FirebaseFirestore.instance
+        .collection('leaves')
+        .where('userId', isEqualTo: user!.uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snapshot) {
       if (mounted) {
         setState(() {
           _leaves = snapshot.docs.map((doc) => {
             'id': doc.id,
             ...doc.data(),
           }).toList();
+          _isLoading = false;
+        });
+      }
+    }, onError: (e) {
+      debugPrint('Error listening to leaves: $e');
+      if (mounted) setState(() => _isLoading = false);
+    });
 
-          if (userDoc.exists) {
-            final userData = userDoc.data();
-            final hasAnnual = userData?.containsKey('leaveBalanceAnnual') ?? false;
-            final hasSick = userData?.containsKey('leaveBalanceSick') ?? false;
-            final hasCasual = userData?.containsKey('leaveBalanceCasual') ?? false;
-            final hasEmergency = userData?.containsKey('leaveBalanceEmergency') ?? false;
+    // Listen to user document changes in real time
+    _userSubscription?.cancel();
+    _userSubscription = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .snapshots()
+        .listen((userDoc) {
+      if (userDoc.exists && mounted) {
+        setState(() {
+          final userData = userDoc.data();
+          final hasAnnual = userData?.containsKey('leaveBalanceAnnual') ?? false;
+          final hasSick = userData?.containsKey('leaveBalanceSick') ?? false;
+          final hasCasual = userData?.containsKey('leaveBalanceCasual') ?? false;
+          final hasEmergency = userData?.containsKey('leaveBalanceEmergency') ?? false;
 
-            final annualBal = (userData?['leaveBalanceAnnual'] as num?)?.toInt() ?? 15;
-            final sickBal = (userData?['leaveBalanceSick'] as num?)?.toInt() ?? 10;
-            final casualBal = (userData?['leaveBalanceCasual'] as num?)?.toInt() ?? 7;
-            final emergencyBal = (userData?['leaveBalanceEmergency'] as num?)?.toInt() ?? 5;
+          final annualBal = (userData?['leaveBalanceAnnual'] as num?)?.toInt() ?? 15;
+          final sickBal = (userData?['leaveBalanceSick'] as num?)?.toInt() ?? 10;
+          final casualBal = (userData?['leaveBalanceCasual'] as num?)?.toInt() ?? 7;
+          final emergencyBal = (userData?['leaveBalanceEmergency'] as num?)?.toInt() ?? 5;
 
-            _leaveTypes[0]['balance'] = annualBal;
-            _leaveTypes[1]['balance'] = sickBal;
-            _leaveTypes[2]['balance'] = casualBal;
-            _leaveTypes[3]['balance'] = emergencyBal;
+          _leaveTypes[0]['balance'] = annualBal;
+          _leaveTypes[1]['balance'] = sickBal;
+          _leaveTypes[2]['balance'] = casualBal;
+          _leaveTypes[3]['balance'] = emergencyBal;
 
-            if (!hasAnnual || !hasSick || !hasCasual || !hasEmergency) {
-              FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-                'leaveBalanceAnnual': annualBal,
-                'leaveBalanceSick': sickBal,
-                'leaveBalanceCasual': casualBal,
-                'leaveBalanceEmergency': emergencyBal,
-              }).catchError((e) => debugPrint('Error initializing leave balances: $e'));
-            }
+          if (!hasAnnual || !hasSick || !hasCasual || !hasEmergency) {
+            FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
+              'leaveBalanceAnnual': annualBal,
+              'leaveBalanceSick': sickBal,
+              'leaveBalanceCasual': casualBal,
+              'leaveBalanceEmergency': emergencyBal,
+            }).catchError((e) => debugPrint('Error initializing leave balances: $e'));
           }
         });
       }
-    } catch (e) {
-      debugPrint('Error fetching leaves: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading leaves: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    }, onError: (e) {
+      debugPrint('Error listening to user document: $e');
+    });
   }
 
   Future<void> _applyLeave(StateSetter setModalState) async {

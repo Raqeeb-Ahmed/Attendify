@@ -14,11 +14,11 @@ class LeaveManagementScreen extends StatefulWidget {
 class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
   final user = FirebaseAuth.instance.currentUser;
   final _formKey = GlobalKey<FormState>();
-  
+
   bool _isLoading = true;
   bool _isApplying = false;
   List<Map<String, dynamic>> _leaves = [];
-  
+
   // Form fields
   String _selectedLeaveType = 'annual';
   DateTime? _startDate;
@@ -55,6 +55,11 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
           .where('userId', isEqualTo: user!.uid)
           .orderBy('createdAt', descending: true)
           .get();
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .get();
       
       if (mounted) {
         setState(() {
@@ -62,6 +67,33 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
             'id': doc.id,
             ...doc.data(),
           }).toList();
+
+          if (userDoc.exists) {
+            final userData = userDoc.data();
+            final hasAnnual = userData?.containsKey('leaveBalanceAnnual') ?? false;
+            final hasSick = userData?.containsKey('leaveBalanceSick') ?? false;
+            final hasCasual = userData?.containsKey('leaveBalanceCasual') ?? false;
+            final hasEmergency = userData?.containsKey('leaveBalanceEmergency') ?? false;
+
+            final annualBal = (userData?['leaveBalanceAnnual'] as num?)?.toInt() ?? 15;
+            final sickBal = (userData?['leaveBalanceSick'] as num?)?.toInt() ?? 10;
+            final casualBal = (userData?['leaveBalanceCasual'] as num?)?.toInt() ?? 7;
+            final emergencyBal = (userData?['leaveBalanceEmergency'] as num?)?.toInt() ?? 5;
+
+            _leaveTypes[0]['balance'] = annualBal;
+            _leaveTypes[1]['balance'] = sickBal;
+            _leaveTypes[2]['balance'] = casualBal;
+            _leaveTypes[3]['balance'] = emergencyBal;
+
+            if (!hasAnnual || !hasSick || !hasCasual || !hasEmergency) {
+              FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
+                'leaveBalanceAnnual': annualBal,
+                'leaveBalanceSick': sickBal,
+                'leaveBalanceCasual': casualBal,
+                'leaveBalanceEmergency': emergencyBal,
+              }).catchError((e) => debugPrint('Error initializing leave balances: $e'));
+            }
+          }
         });
       }
     } catch (e) {
@@ -95,11 +127,25 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     final navigator = Navigator.of(context);
     final days = _endDate!.difference(_startDate!).inDays + 1;
     String leaveTypeLabel = _selectedLeaveType;
+    int availableBalance = 0;
+
     for (final type in _leaveTypes) {
       if (type['id'] == _selectedLeaveType) {
         leaveTypeLabel = type['label'] as String;
+        availableBalance = type['balance'] as int;
         break;
       }
+    }
+
+    if (days > availableBalance) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Insufficient balance. You only have $availableBalance day(s) of $leaveTypeLabel left.'),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
     }
 
     if (mounted) {
@@ -197,6 +243,16 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
 
   void _showApplyLeaveModal() {
     _resetForm();
+    // Pre-select the first leave type with balance > 0, if any
+    String defaultType = 'annual';
+    for (final type in _leaveTypes) {
+      if ((type['balance'] as int) > 0) {
+        defaultType = type['id'] as String;
+        break;
+      }
+    }
+    _selectedLeaveType = defaultType;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -204,6 +260,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
           final bool isMobile = MediaQuery.of(context).size.width < 600;
+          final bool hasAnyBalance = _leaveTypes.any((t) => (t['balance'] as int) > 0);
+
           return Container(
             height: MediaQuery.of(context).size.height * 0.85,
             decoration: const BoxDecoration(
@@ -216,7 +274,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                    border: Border(
+                      bottom: BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -259,27 +319,49 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
                             initialValue: _selectedLeaveType,
-                            onChanged: _isApplying ? null : (v) => setModalState(() => _selectedLeaveType = v!),
+                            onChanged: !hasAnyBalance || _isApplying
+                                ? null
+                                : (v) => setModalState(
+                                    () => _selectedLeaveType = v!,
+                                  ),
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: const Color(0xFFF8FAFC),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE2E8F0),
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE2E8F0),
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF6366F1),
+                                  width: 2,
+                                ),
                               ),
                             ),
                             items: _leaveTypes.map((type) {
+                              final id = type['id'] as String;
+                              final label = type['label'] as String;
+                              final balance = type['balance'] as int;
+                              final isEnabled = balance > 0;
                               return DropdownMenuItem<String>(
-                                value: type['id'] as String,
-                                child: Text(type['label'] as String),
+                                value: id,
+                                enabled: isEnabled,
+                                child: Text(
+                                  isEnabled ? '$label ($balance days left)' : '$label (0 days left - Unavailable)',
+                                  style: TextStyle(
+                                    color: isEnabled ? const Color(0xFF1E293B) : Colors.grey.shade400,
+                                    fontWeight: isEnabled ? FontWeight.normal : FontWeight.w600,
+                                  ),
+                                ),
                               );
                             }).toList(),
                           ),
@@ -305,7 +387,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                       context: context,
                                       initialDate: DateTime.now(),
                                       firstDate: DateTime.now(),
-                                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                                      lastDate: DateTime.now().add(
+                                        const Duration(days: 365),
+                                      ),
                                     );
                                     if (date != null) {
                                       setModalState(() => _startDate = date);
@@ -317,18 +401,28 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF8FAFC),
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      border: Border.all(
+                                        color: const Color(0xFFE2E8F0),
+                                      ),
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.calendar_today_rounded, size: 18, color: Color(0xFF6366F1)),
+                                        const Icon(
+                                          Icons.calendar_today_rounded,
+                                          size: 18,
+                                          color: Color(0xFF6366F1),
+                                        ),
                                         const SizedBox(width: 12),
                                         Text(
                                           _startDate != null
-                                              ? DateFormat('MMM dd, yyyy').format(_startDate!)
+                                              ? DateFormat(
+                                                  'MMM dd, yyyy',
+                                                ).format(_startDate!)
                                               : 'Select date',
                                           style: TextStyle(
-                                            color: _startDate != null ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                                            color: _startDate != null
+                                                ? const Color(0xFF1E293B)
+                                                : const Color(0xFF94A3B8),
                                           ),
                                         ),
                                       ],
@@ -356,7 +450,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                       context: context,
                                       initialDate: _startDate ?? DateTime.now(),
                                       firstDate: _startDate ?? DateTime.now(),
-                                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                                      lastDate: DateTime.now().add(
+                                        const Duration(days: 365),
+                                      ),
                                     );
                                     if (date != null) {
                                       setModalState(() => _endDate = date);
@@ -368,18 +464,28 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF8FAFC),
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      border: Border.all(
+                                        color: const Color(0xFFE2E8F0),
+                                      ),
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.calendar_today_rounded, size: 18, color: Color(0xFF6366F1)),
+                                        const Icon(
+                                          Icons.calendar_today_rounded,
+                                          size: 18,
+                                          color: Color(0xFF6366F1),
+                                        ),
                                         const SizedBox(width: 12),
                                         Text(
                                           _endDate != null
-                                              ? DateFormat('MMM dd, yyyy').format(_endDate!)
+                                              ? DateFormat(
+                                                  'MMM dd, yyyy',
+                                                ).format(_endDate!)
                                               : 'Select date',
                                           style: TextStyle(
-                                            color: _endDate != null ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                                            color: _endDate != null
+                                                ? const Color(0xFF1E293B)
+                                                : const Color(0xFF94A3B8),
                                           ),
                                         ),
                                       ],
@@ -393,7 +499,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Start Date',
@@ -405,35 +512,60 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       InkWell(
-                                        onTap: _isApplying ? null : () async {
-                                          final date = await showDatePicker(
-                                            context: context,
-                                            initialDate: DateTime.now(),
-                                            firstDate: DateTime.now(),
-                                            lastDate: DateTime.now().add(const Duration(days: 365)),
-                                          );
-                                          if (date != null) {
-                                            setModalState(() => _startDate = date);
-                                            setState(() => _startDate = date);
-                                          }
-                                        },
+                                        onTap: _isApplying
+                                            ? null
+                                            : () async {
+                                                final date =
+                                                    await showDatePicker(
+                                                      context: context,
+                                                      initialDate:
+                                                          DateTime.now(),
+                                                      firstDate: DateTime.now(),
+                                                      lastDate: DateTime.now()
+                                                          .add(
+                                                            const Duration(
+                                                              days: 365,
+                                                            ),
+                                                          ),
+                                                    );
+                                                if (date != null) {
+                                                  setModalState(
+                                                    () => _startDate = date,
+                                                  );
+                                                  setState(
+                                                    () => _startDate = date,
+                                                  );
+                                                }
+                                              },
                                         child: Container(
                                           padding: const EdgeInsets.all(16),
                                           decoration: BoxDecoration(
                                             color: const Color(0xFFF8FAFC),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFE2E8F0),
+                                            ),
                                           ),
                                           child: Row(
                                             children: [
-                                              const Icon(Icons.calendar_today_rounded, size: 18, color: Color(0xFF6366F1)),
+                                              const Icon(
+                                                Icons.calendar_today_rounded,
+                                                size: 18,
+                                                color: Color(0xFF6366F1),
+                                              ),
                                               const SizedBox(width: 12),
                                               Text(
                                                 _startDate != null
-                                                    ? DateFormat('MMM dd, yyyy').format(_startDate!)
+                                                    ? DateFormat(
+                                                        'MMM dd, yyyy',
+                                                      ).format(_startDate!)
                                                     : 'Select date',
                                                 style: TextStyle(
-                                                  color: _startDate != null ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                                                  color: _startDate != null
+                                                      ? const Color(0xFF1E293B)
+                                                      : const Color(0xFF94A3B8),
                                                 ),
                                               ),
                                             ],
@@ -446,7 +578,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'End Date',
@@ -458,35 +591,63 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       InkWell(
-                                        onTap: _isApplying ? null : () async {
-                                          final date = await showDatePicker(
-                                            context: context,
-                                            initialDate: _startDate ?? DateTime.now(),
-                                            firstDate: _startDate ?? DateTime.now(),
-                                            lastDate: DateTime.now().add(const Duration(days: 365)),
-                                          );
-                                          if (date != null) {
-                                            setModalState(() => _endDate = date);
-                                            setState(() => _endDate = date);
-                                          }
-                                        },
+                                        onTap: _isApplying
+                                            ? null
+                                            : () async {
+                                                final date =
+                                                    await showDatePicker(
+                                                      context: context,
+                                                      initialDate:
+                                                          _startDate ??
+                                                          DateTime.now(),
+                                                      firstDate:
+                                                          _startDate ??
+                                                          DateTime.now(),
+                                                      lastDate: DateTime.now()
+                                                          .add(
+                                                            const Duration(
+                                                              days: 365,
+                                                            ),
+                                                          ),
+                                                    );
+                                                if (date != null) {
+                                                  setModalState(
+                                                    () => _endDate = date,
+                                                  );
+                                                  setState(
+                                                    () => _endDate = date,
+                                                  );
+                                                }
+                                              },
                                         child: Container(
                                           padding: const EdgeInsets.all(16),
                                           decoration: BoxDecoration(
                                             color: const Color(0xFFF8FAFC),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFE2E8F0),
+                                            ),
                                           ),
                                           child: Row(
                                             children: [
-                                              const Icon(Icons.calendar_today_rounded, size: 18, color: Color(0xFF6366F1)),
+                                              const Icon(
+                                                Icons.calendar_today_rounded,
+                                                size: 18,
+                                                color: Color(0xFF6366F1),
+                                              ),
                                               const SizedBox(width: 12),
                                               Text(
                                                 _endDate != null
-                                                    ? DateFormat('MMM dd, yyyy').format(_endDate!)
+                                                    ? DateFormat(
+                                                        'MMM dd, yyyy',
+                                                      ).format(_endDate!)
                                                     : 'Select date',
                                                 style: TextStyle(
-                                                  color: _endDate != null ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                                                  color: _endDate != null
+                                                      ? const Color(0xFF1E293B)
+                                                      : const Color(0xFF94A3B8),
                                                 ),
                                               ),
                                             ],
@@ -516,20 +677,28 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                             maxLines: 4,
                             enabled: !_isApplying,
                             decoration: InputDecoration(
-                              hintText: 'Briefly explain the reason for leave...',
+                              hintText:
+                                  'Briefly explain the reason for leave...',
                               filled: true,
                               fillColor: const Color(0xFFF8FAFC),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE2E8F0),
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE2E8F0),
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF6366F1),
+                                  width: 2,
+                                ),
                               ),
                             ),
                             validator: (value) {
@@ -547,11 +716,17 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFEFF6FF),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFBAE6FD)),
+                              border: Border.all(
+                                color: const Color(0xFFBAE6FD),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.info_outline, color: Color(0xFF0284C7), size: 20),
+                                const Icon(
+                                  Icons.info_outline,
+                                  color: Color(0xFF0284C7),
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
@@ -605,7 +780,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                       Expanded(
                         flex: 2,
                         child: ElevatedButton(
-                          onPressed: _isApplying ? null : () => _applyLeave(setModalState),
+                          onPressed: !hasAnyBalance || _isApplying
+                              ? null
+                              : () => _applyLeave(setModalState),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF6366F1),
                             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -710,7 +887,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6366F1)),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -720,10 +899,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                   if (isMobile) ...[
                     const Text(
                       'Apply for leaves and track your requests',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF64748B),
-                      ),
+                      style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -767,7 +943,10 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF6366F1),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -788,7 +967,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
                       childAspectRatio: isMobile
-                          ? (MediaQuery.of(context).size.width < 360 ? 1.15 : 1.35)
+                          ? (MediaQuery.of(context).size.width < 360
+                                ? 1.15
+                                : 1.35)
                           : 1.6,
                     ),
                     itemCount: _leaveTypes.length,
@@ -800,7 +981,10 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                       final bgColor = _getLeaveBgColor(id);
 
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -826,14 +1010,13 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                     color: bgColor,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: Icon(
-                                    icon,
-                                    color: color,
-                                    size: 18,
-                                  ),
+                                  child: Icon(icon, color: color, size: 18),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF1F5F9),
                                     borderRadius: BorderRadius.circular(10),
@@ -869,7 +1052,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Row(
-                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.baseline,
                                     textBaseline: TextBaseline.alphabetic,
                                     children: [
                                       FittedBox(
@@ -960,7 +1144,11 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 itemCount: _leaves.length,
-                                separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                                separatorBuilder: (context, index) =>
+                                    const Divider(
+                                      height: 1,
+                                      color: Color(0xFFF1F5F9),
+                                    ),
                                 itemBuilder: (context, index) {
                                   final leave = _leaves[index];
                                   return _buildLeaveItem(leave);
@@ -1071,7 +1259,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                if (leave['reason'] != null && leave['reason'].toString().trim().isNotEmpty) ...[
+                if (leave['reason'] != null &&
+                    leave['reason'].toString().trim().isNotEmpty) ...[
                   Text(
                     leave['reason'],
                     style: const TextStyle(
@@ -1085,7 +1274,11 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                 ],
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF94A3B8)),
+                    const Icon(
+                      Icons.calendar_today_rounded,
+                      size: 12,
+                      color: Color(0xFF94A3B8),
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(

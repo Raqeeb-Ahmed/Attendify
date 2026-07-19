@@ -56,6 +56,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     _officeLat = AppConfig.officeLat;
     _officeLng = AppConfig.officeLng;
     _selectedDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    AttendanceService().forceAutoCheckoutAllPastDue();
     _fetchUserRole();
   }
 
@@ -2542,7 +2543,7 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
                         TileLayer(
                           urlTemplate:
                               'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'com.attendo.attendance',
+                          userAgentPackageName: 'com.attendance.attendo',
                         ),
                         CircleLayer(
                           circles: [

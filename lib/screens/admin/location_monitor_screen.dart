@@ -306,6 +306,7 @@ class _ActiveEmployeeTrackerViewState
   List<LatLng>? _lastInputPoints;
   List<LatLng> _lastPoints = [];
   Future<List<LatLng>>? _routeFuture;
+  List<LatLng> _routePoints = [];
 
   bool _isSamePoints(List<LatLng> a, List<LatLng>? b) {
     if (b == null || a.length != b.length) return false;
@@ -360,7 +361,14 @@ class _ActiveEmployeeTrackerViewState
       return;
     }
     _lastPoints = List.from(points);
-    _routeFuture = _getOSRMRoute(points);
+    _routeFuture = _getOSRMRoute(points).then((resolvedPoints) {
+      if (mounted) {
+        setState(() {
+          _routePoints = resolvedPoints;
+        });
+      }
+      return resolvedPoints;
+    });
   }
 
   @override
@@ -370,6 +378,7 @@ class _ActiveEmployeeTrackerViewState
       _cachedRoute = null;
       _lastInputPoints = null;
       _lastPoints = [];
+      _routePoints = [];
       _routeFuture = null;
     }
   }
@@ -589,23 +598,17 @@ class _ActiveEmployeeTrackerViewState
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.attendo.attendance',
+                userAgentPackageName: 'com.attendance.attendo',
               ),
               if (trailPoints.length > 1)
-                FutureBuilder<List<LatLng>>(
-                  future: _routeFuture,
-                  builder: (context, routeSnap) {
-                    final displayPoints = routeSnap.data ?? trailPoints;
-                    return PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: displayPoints,
-                          color: const Color(0xFF6366F1).withValues(alpha: 0.7),
-                          strokeWidth: 4,
-                        ),
-                      ],
-                    );
-                  },
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _routePoints.isNotEmpty ? _routePoints : trailPoints,
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.7),
+                      strokeWidth: 4,
+                    ),
+                  ],
                 ),
               PolygonLayer(
                 polygons: [

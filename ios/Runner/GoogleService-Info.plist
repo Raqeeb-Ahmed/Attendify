@@ -13,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.attendo.attendance</string>
+	<string>com.attendance.attendo</string>
 	<key>PROJECT_ID</key>
 	<string>attendify-aea1d</string>
 	<key>STORAGE_BUCKET</key>

@@ -41,6 +41,10 @@ class AttendanceService {
   static const int autoCheckoutHour = 18; // 6 PM
   static const int autoCheckoutMinute = 0;
 
+  AttendanceService() {
+    forceAutoCheckoutAllPastDue();
+  }
+
   // ── Haversine Formula ──
   double getDistanceFromLatLonInM(
     double lat1,
@@ -75,6 +79,7 @@ class AttendanceService {
   Future<Map<String, dynamic>?> fetchTodayAttendance(String userId) async {
     try {
       final attendanceId = getTodayAttendanceId(userId);
+      await checkAndForceAutoCheckout(userId);
       final docSnap = await _db
           .collection('attendance')
           .doc(attendanceId)
@@ -270,12 +275,21 @@ class AttendanceService {
 
       if (attData['checkOutTime'] != null) return attData;
 
-      final nowIso = DateTime.now().toIso8601String();
+      final now = DateTime.now();
+      final nowIso = now.toIso8601String();
+
+      final finalSegmentUpdates = _accumulateFinalSegment(attData, now);
+      final insideTime =
+          finalSegmentUpdates['insideTime'] ?? attData['insideTime'] ?? 0;
+      final offlineTime =
+          finalSegmentUpdates['offlineTime'] ?? attData['offlineTime'] ?? 0;
+      final outsideTime =
+          finalSegmentUpdates['outsideTime'] ?? attData['outsideTime'] ?? 0;
+      final extraHours =
+          finalSegmentUpdates['extraHours'] ?? attData['extraHours'] ?? 0;
+
       final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
-      final insideOfficeMs =
-          ((attData['insideTime'] ?? 0) + (attData['offlineTime'] ?? 0)) *
-          60 *
-          1000;
+      final insideOfficeMs = (insideTime + offlineTime) * 60 * 1000;
 
       final updates = {
         'checkOutTime': nowIso,
@@ -283,6 +297,10 @@ class AttendanceService {
         'sessionStatus': 'ended',
         'totalHours': totalHours,
         'insideOfficeTime': insideOfficeMs,
+        'insideTime': insideTime,
+        'offlineTime': offlineTime,
+        'outsideTime': outsideTime,
+        'extraHours': extraHours,
       };
 
       await docRef.update(updates);
@@ -357,6 +375,301 @@ class AttendanceService {
           'insideOfficeTime': insideOfficeMs,
         });
       }
+    }
+  }
+
+  /// Accumulates final tracking metrics between the last update and the checkout time
+  Map<String, int> _accumulateFinalSegment(
+    Map<String, dynamic> attData,
+    DateTime now,
+  ) {
+    final updates = <String, int>{};
+    if (attData['lastActive'] == null) return updates;
+
+    try {
+      final lastDate = DateTime.parse(attData['lastActive'] as String);
+      final diffMins = now.difference(lastDate).inMinutes;
+
+      if (diffMins > 0) {
+        // Construct office boundary dates for the segment's day
+        final dayStart = DateTime(
+          lastDate.year,
+          lastDate.month,
+          lastDate.day,
+          9,
+          0,
+        );
+        final dayEnd = DateTime(
+          lastDate.year,
+          lastDate.month,
+          lastDate.day,
+          18,
+          0,
+        );
+
+        final officeStartOverlap = lastDate.isAfter(dayStart)
+            ? lastDate
+            : dayStart;
+        final officeEndOverlap = now.isBefore(dayEnd) ? now : dayEnd;
+        final officeMins = officeEndOverlap.isAfter(officeStartOverlap)
+            ? officeEndOverlap.difference(officeStartOverlap).inMinutes
+            : 0;
+
+        final overtimeStartOverlap = lastDate.isAfter(dayEnd)
+            ? lastDate
+            : dayEnd;
+        final overtimeEndOverlap = now;
+        final overtimeMins = overtimeEndOverlap.isAfter(overtimeStartOverlap)
+            ? overtimeEndOverlap.difference(overtimeStartOverlap).inMinutes
+            : 0;
+
+        if (diffMins < 20) {
+          // Active tracking interval (< 20 min gap)
+          // Default to inside office unless explicitly outside
+          final wasInside = attData['currentStatus'] != 'outside';
+          if (wasInside) {
+            if (officeMins > 0) {
+              updates['insideTime'] =
+                  ((attData['insideTime'] as num?)?.toInt() ?? 0) + officeMins;
+            }
+            if (overtimeMins > 0) {
+              updates['extraHours'] =
+                  ((attData['extraHours'] as num?)?.toInt() ?? 0) +
+                  overtimeMins;
+            }
+          } else {
+            if (officeMins > 0) {
+              updates['outsideTime'] =
+                  ((attData['outsideTime'] as num?)?.toInt() ?? 0) + officeMins;
+            }
+          }
+        } else {
+          // Offline gap (≥ 20 minutes)
+          // As requested, offline/killed time is treated as inside office time!
+          if (officeMins > 0) {
+            updates['offlineTime'] =
+                ((attData['offlineTime'] as num?)?.toInt() ?? 0) + officeMins;
+            updates['insideTime'] =
+                ((attData['insideTime'] as num?)?.toInt() ?? 0) + officeMins;
+          }
+        }
+      }
+    } catch (_) {}
+    return updates;
+  }
+
+  /// Checks and forcefully check out a specific user if it's past 6:00 PM
+  Future<void> checkAndForceAutoCheckout(
+    String userId, {
+    String? targetDate,
+  }) async {
+    try {
+      final attendanceId = targetDate != null
+          ? '${userId}_$targetDate'
+          : getTodayAttendanceId(userId);
+      final docRef = _db.collection('attendance').doc(attendanceId);
+
+      // Get cached data from RTDB first (most recent)
+      Map<String, dynamic>? attData;
+      final rtdbRef = _rtdb.ref('attendance/$attendanceId');
+      try {
+        final rtdbSnap = await rtdbRef.get();
+        if (rtdbSnap.exists) {
+          attData = Map<String, dynamic>.from(rtdbSnap.value as Map);
+        }
+      } catch (_) {}
+
+      if (attData == null) {
+        final docSnap = await docRef.get();
+        if (docSnap.exists) {
+          attData = docSnap.data();
+        }
+      }
+
+      if (attData == null) return;
+
+      // Check if checked in, but not checked out, and current time is past 6:00 PM of that day
+      if (attData['checkInTime'] != null && attData['checkOutTime'] == null) {
+        final checkInDateTime = DateTime.parse(
+          attData['checkInTime'] as String,
+        );
+        final now = DateTime.now();
+
+        // Construct 6 PM time of that attendance day
+        final autoCheckoutTime = DateTime(
+          checkInDateTime.year,
+          checkInDateTime.month,
+          checkInDateTime.day,
+          18,
+          0,
+        );
+
+        if (now.isAfter(autoCheckoutTime)) {
+          debugPrint(
+            '[AttendanceService] Forcefully auto-checking out $userId at 6 PM',
+          );
+          final nowIso = autoCheckoutTime.toIso8601String();
+
+          final finalSegmentUpdates = _accumulateFinalSegment(
+            attData,
+            autoCheckoutTime,
+          );
+          final insideTime =
+              finalSegmentUpdates['insideTime'] ??
+              (attData['insideTime'] as num?)?.toInt() ??
+              0;
+          final offlineTime =
+              finalSegmentUpdates['offlineTime'] ??
+              (attData['offlineTime'] as num?)?.toInt() ??
+              0;
+          final outsideTime =
+              finalSegmentUpdates['outsideTime'] ??
+              (attData['outsideTime'] as num?)?.toInt() ??
+              0;
+          final extraHours =
+              finalSegmentUpdates['extraHours'] ??
+              (attData['extraHours'] as num?)?.toInt() ??
+              0;
+
+          final totalHours = _computeTotalHours(
+            attData['checkInTime'] as String?,
+            nowIso,
+          );
+          final insideOfficeMs = (insideTime + offlineTime) * 60 * 1000;
+
+          final updates = {
+            'checkOutTime': nowIso,
+            'lastActive': nowIso,
+            'sessionStatus': 'auto-checkout',
+            'totalHours': totalHours,
+            'insideOfficeTime': insideOfficeMs,
+            'insideTime': insideTime,
+            'offlineTime': offlineTime,
+            'outsideTime': outsideTime,
+            'extraHours': extraHours,
+          };
+
+          await docRef.update(updates);
+
+          try {
+            await rtdbRef.update(updates);
+          } catch (_) {}
+
+          // Clear caches
+          _lastSyncTimes.remove(attendanceId);
+          _lastStatuses.remove(attendanceId);
+          _lastFirestoreSyncTimes.remove(attendanceId);
+        }
+      }
+    } catch (e) {
+      debugPrint('[AttendanceService] Error in checkAndForceAutoCheckout: $e');
+    }
+  }
+
+  /// Forcefully checkout all active sessions that are past 6 PM (both past days and today)
+  Future<void> forceAutoCheckoutAllPastDue() async {
+    try {
+      final now = DateTime.now();
+      final todayStr = _formatDate(now);
+
+      // Query all documents that are currently active
+      final querySnap = await _db
+          .collection('attendance')
+          .where('sessionStatus', isEqualTo: 'active')
+          .get();
+
+      for (var doc in querySnap.docs) {
+        final data = doc.data();
+        final dateStr = data['date'] as String?;
+        if (dateStr == null) continue;
+
+        final isPastDay = dateStr.compareTo(todayStr) < 0;
+        final isTodayPast6PM = dateStr == todayStr && now.hour >= 18;
+
+        if (isPastDay || isTodayPast6PM) {
+          final userId = data['userId'] as String?;
+          if (userId == null) continue;
+
+          final attendanceId = doc.id;
+
+          // Construct 6 PM time of that day
+          final parts = dateStr.split('-');
+          if (parts.length != 3) continue;
+          final yr = int.parse(parts[0]);
+          final mon = int.parse(parts[1]);
+          final dy = int.parse(parts[2]);
+          final autoCheckoutTime = DateTime(yr, mon, dy, 18, 0);
+          final nowIso = autoCheckoutTime.toIso8601String();
+
+          // Get RTDB cache first
+          Map<String, dynamic>? cachedData;
+          final rtdbRef = _rtdb.ref('attendance/$attendanceId');
+          try {
+            final rtdbSnap = await rtdbRef.get();
+            if (rtdbSnap.exists) {
+              cachedData = Map<String, dynamic>.from(rtdbSnap.value as Map);
+            }
+          } catch (_) {}
+
+          final mergedData = {...data, if (cachedData != null) ...cachedData};
+
+          final finalSegmentUpdates = _accumulateFinalSegment(
+            mergedData,
+            autoCheckoutTime,
+          );
+          final insideTime =
+              finalSegmentUpdates['insideTime'] ??
+              (mergedData['insideTime'] as num?)?.toInt() ??
+              0;
+          final offlineTime =
+              finalSegmentUpdates['offlineTime'] ??
+              (mergedData['offlineTime'] as num?)?.toInt() ??
+              0;
+          final outsideTime =
+              finalSegmentUpdates['outsideTime'] ??
+              (mergedData['outsideTime'] as num?)?.toInt() ??
+              0;
+          final extraHours =
+              finalSegmentUpdates['extraHours'] ??
+              (mergedData['extraHours'] as num?)?.toInt() ??
+              0;
+
+          final totalHours = _computeTotalHours(
+            data['checkInTime'] as String?,
+            nowIso,
+          );
+          final insideOfficeMs = (insideTime + offlineTime) * 60 * 1000;
+
+          final updates = {
+            'checkOutTime': nowIso,
+            'lastActive': nowIso,
+            'sessionStatus': 'auto-checkout',
+            'totalHours': totalHours,
+            'insideOfficeTime': insideOfficeMs,
+            'insideTime': insideTime,
+            'offlineTime': offlineTime,
+            'outsideTime': outsideTime,
+            'extraHours': extraHours,
+          };
+
+          await _db.collection('attendance').doc(attendanceId).update(updates);
+
+          try {
+            await rtdbRef.update(updates);
+          } catch (_) {}
+
+          // Clear caches
+          _lastSyncTimes.remove(attendanceId);
+          _lastStatuses.remove(attendanceId);
+          _lastFirestoreSyncTimes.remove(attendanceId);
+
+          debugPrint(
+            '[AttendanceService] Forcefully checked out stale user $userId for day $dateStr',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[AttendanceService] Error forcing auto-checkouts: $e');
     }
   }
 
@@ -502,17 +815,24 @@ class AttendanceService {
         final attData = docSnap.data()!;
         if (attData['checkOutTime'] != null) return; // Already checked out
 
+        final mergedData = {...attData, if (cachedData != null) ...cachedData};
+
+        final finalSegmentUpdates = _accumulateFinalSegment(mergedData, now);
         final insideTime =
-            (cachedData?['insideTime'] as num?)?.toInt() ??
-            (attData['insideTime'] as num?)?.toInt() ??
+            (finalSegmentUpdates['insideTime'] as num?)?.toInt() ??
+            (mergedData['insideTime'] as num?)?.toInt() ??
             0;
         final offlineTime =
-            (cachedData?['offlineTime'] as num?)?.toInt() ??
-            (attData['offlineTime'] as num?)?.toInt() ??
+            (finalSegmentUpdates['offlineTime'] as num?)?.toInt() ??
+            (mergedData['offlineTime'] as num?)?.toInt() ??
+            0;
+        final outsideTime =
+            (finalSegmentUpdates['outsideTime'] as num?)?.toInt() ??
+            (mergedData['outsideTime'] as num?)?.toInt() ??
             0;
         final extraHours =
-            (cachedData?['extraHours'] as num?)?.toInt() ??
-            (attData['extraHours'] as num?)?.toInt() ??
+            (finalSegmentUpdates['extraHours'] as num?)?.toInt() ??
+            (mergedData['extraHours'] as num?)?.toInt() ??
             0;
 
         final totalHours = _computeTotalHours(attData['checkInTime'], nowIso);
@@ -528,6 +848,9 @@ class AttendanceService {
           'sessionStatus': 'auto-checkout',
           'totalHours': totalHours,
           'insideOfficeTime': insideOfficeMs,
+          'insideTime': insideTime,
+          'offlineTime': offlineTime,
+          'outsideTime': outsideTime,
           'extraHours': extraHours + overtimeMins,
         };
 

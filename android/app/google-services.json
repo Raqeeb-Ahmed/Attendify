@@ -8,22 +8,30 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1011764140696:android:fcf622867391217359ceed",
+        "mobilesdk_app_id": "1:1011764140696:android:c7f6bb78e7a4b74259ceed",
         "android_client_info": {
-          "package_name": "com.attendo.attendance"
+          "package_name": "com.attendance.attendo"
         }
       },
       "oauth_client": [
         {
-          "client_id": "1011764140696-l7nmj41d0886709t0b6niglfb4jo5ncd.apps.googleusercontent.com",
+          "client_id": "1011764140696-os0ohg4p7j2lk9ft7ni8r102hhc9hkf3.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.attendo.attendance",
-            "certificate_hash": "c43384fe16635c9830d37be99c45bbd33f92f820"
+            "package_name": "com.attendance.attendo",
+            "certificate_hash": "6a297986fd9302bc1de8dd434545c97958ea7b9e"
           }
         },
         {
-          "client_id": "1011764140696-f11ro7v81riu3n56m1derfmiasf7c5up.apps.googleusercontent.com",
+          "client_id": "1011764140696-psdgkqbegueui5a5r6qp680p7d228he7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attendance.attendo",
+            "certificate_hash": "5a5604f2b1498dbab2179bc2d45df27e7fc895f7"
+          }
+        },
+        {
+          "client_id": "1011764140696-aa86id2fdihjjdnl6j9o4fkga6trgso5.apps.googleusercontent.com",
           "client_type": 3
         }
       ],

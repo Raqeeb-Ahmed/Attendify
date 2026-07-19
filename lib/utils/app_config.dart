@@ -20,8 +20,4 @@ class AppConfig {
     'O.S TRAVEL 5G',
     'O.S TRAVEL',
   ];
-
-  // /// FCM Server Key (Legacy Key) from Firebase Console -> Project Settings -> Cloud Messaging.
-  // /// Used for sending push notifications directly from the app on the free Spark plan.
-  // static const String fcmServerKey = 'YOUR_FCM_SERVER_KEY';
 }

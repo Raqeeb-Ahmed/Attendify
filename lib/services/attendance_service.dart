@@ -445,12 +445,9 @@ class AttendanceService {
           }
         } else {
           // Offline gap (≥ 20 minutes)
-          // As requested, offline/killed time is treated as inside office time!
           if (officeMins > 0) {
             updates['offlineTime'] =
                 ((attData['offlineTime'] as num?)?.toInt() ?? 0) + officeMins;
-            updates['insideTime'] =
-                ((attData['insideTime'] as num?)?.toInt() ?? 0) + officeMins;
           }
         }
       }
@@ -1177,18 +1174,36 @@ class AttendanceService {
           // Only count the offline gap that fell within office hours
           if (officeMins > 0) {
             updates['offlineTime'] = (attData['offlineTime'] ?? 0) + officeMins;
-            updates['insideTime'] = (attData['insideTime'] ?? 0) + officeMins;
           }
         }
       }
     }
 
-    // ── Recalculate derived fields ──────────────────────────────────────────
-    final currentInside = updates['insideTime'] ?? attData['insideTime'] ?? 0;
-    final currentOffline =
-        updates['offlineTime'] ?? attData['offlineTime'] ?? 0;
-    updates['insideOfficeTime'] =
-        (currentInside + currentOffline) * 60 * 1000; // ms
+    // ── Recalculate derived fields & Apply Sanity Clamps ─────────────────────
+    int maxElapsedMins = 540; // Max office minutes in a 9-hour day
+    if (attData['checkInTime'] != null) {
+      try {
+        final checkInDt = DateTime.parse(attData['checkInTime'] as String);
+        final endDt = alreadyCheckedOut && attData['checkOutTime'] != null
+            ? DateTime.parse(attData['checkOutTime'] as String)
+            : now;
+        maxElapsedMins = endDt.difference(checkInDt).inMinutes.clamp(0, 540);
+      } catch (_) {}
+    }
+
+    int currentInside = ((updates['insideTime'] ?? attData['insideTime'] ?? 0) as num).toInt();
+    int currentOutside = ((updates['outsideTime'] ?? attData['outsideTime'] ?? 0) as num).toInt();
+    int currentOffline = ((updates['offlineTime'] ?? attData['offlineTime'] ?? 0) as num).toInt();
+
+    // Clamp metrics so they can never exceed max elapsed minutes since check-in
+    currentInside = currentInside.clamp(0, maxElapsedMins);
+    currentOutside = currentOutside.clamp(0, maxElapsedMins);
+    currentOffline = currentOffline.clamp(0, maxElapsedMins);
+
+    updates['insideTime'] = currentInside;
+    updates['outsideTime'] = currentOutside;
+    updates['offlineTime'] = currentOffline;
+    updates['insideOfficeTime'] = (currentInside + currentOffline) * 60 * 1000; // ms
 
     if (alreadyCheckedOut) {
       updates['totalHours'] = _computeTotalHours(

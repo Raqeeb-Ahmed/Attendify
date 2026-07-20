@@ -188,6 +188,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
                   return StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('payroll')
+                        .limit(50)
                         .snapshots(),
                     builder: (ctx, paySnap) {
                       final users = (usersSnap.data?.docs ?? [])

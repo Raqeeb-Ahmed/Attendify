@@ -565,6 +565,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             .collection('expenses')
             .where('userId', isEqualTo: user?.uid)
             .orderBy('createdAt', descending: true)
+            .limit(30)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {

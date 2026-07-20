@@ -62,11 +62,12 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
                     ? FirebaseFirestore.instance
                         .collection('expenses')
                         .orderBy('createdAt', descending: true)
+                        .limit(30)
                         .snapshots()
                     : FirebaseFirestore.instance
                         .collection('expenses')
                         .where('status', isEqualTo: _filterStatus)
-                        // .orderBy('createdAt', descending: true)
+                        .limit(30)
                         .snapshots(),
                 builder: (ctx, snap) {
                   print("Filter: $_filterStatus");

@@ -626,6 +626,41 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
   final Map<String, bool> _updatingLeaves = {};
   final Map<String, bool> _updatingUsers = {};
 
+  late Stream<QuerySnapshot> _usersStream;
+  late Stream<QuerySnapshot> _attendanceStream;
+  late Stream<DatabaseEvent> _heartbeatsStream;
+  late Stream<DatabaseEvent> _locationsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStreams();
+  }
+
+  void _initStreams() {
+    _usersStream = FirebaseFirestore.instance
+        .collection('users')
+        .where('role', whereIn: const ['employee', 'manager'])
+        .snapshots();
+    _attendanceStream = FirebaseFirestore.instance
+        .collection('attendance')
+        .where('date', isEqualTo: widget.selectedDate)
+        .snapshots();
+    _heartbeatsStream = widget.attendanceService.getHeartbeats();
+    _locationsStream = FirebaseDatabase.instance.ref('locations').onValue;
+  }
+
+  @override
+  void didUpdateWidget(covariant _AdminDashboardHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedDate != widget.selectedDate) {
+      _attendanceStream = FirebaseFirestore.instance
+          .collection('attendance')
+          .where('date', isEqualTo: widget.selectedDate)
+          .snapshots();
+    }
+  }
+
   @override
   bool get wantKeepAlive => true;
 
@@ -633,22 +668,16 @@ class _AdminDashboardHomeState extends State<_AdminDashboardHome>
   Widget build(BuildContext context) {
     super.build(context);
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('role', whereIn: const ['employee', 'manager'])
-          .snapshots(),
+      stream: _usersStream,
       builder: (context, usersSnap) {
         return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('attendance')
-              .where('date', isEqualTo: widget.selectedDate)
-              .snapshots(),
+          stream: _attendanceStream,
           builder: (context, attendanceSnap) {
             return StreamBuilder<DatabaseEvent>(
-              stream: widget.attendanceService.getHeartbeats(),
+              stream: _heartbeatsStream,
               builder: (context, heartbeatSnapshot) {
                 return StreamBuilder<DatabaseEvent>(
-                  stream: FirebaseDatabase.instance.ref('locations').onValue,
+                  stream: _locationsStream,
                   builder: (context, locationsSnapshot) {
                     return Column(
                       children: [

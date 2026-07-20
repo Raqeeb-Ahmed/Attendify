@@ -376,6 +376,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       stream: _firestore
                           .collection('announcements')
                           .orderBy('createdAt', descending: true)
+                          .limit(30)
                           .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {

@@ -53,7 +53,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
 
   Future<void> _fetchLeaves() async {
     if (user == null) return;
-    
+
     if (mounted) setState(() => _isLoading = true);
 
     // Listen to leaves list changes in real time
@@ -62,21 +62,24 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         .collection('leaves')
         .where('userId', isEqualTo: user!.uid)
         .orderBy('createdAt', descending: true)
+        .limit(30)
         .snapshots()
-        .listen((snapshot) {
-      if (mounted) {
-        setState(() {
-          _leaves = snapshot.docs.map((doc) => {
-            'id': doc.id,
-            ...doc.data(),
-          }).toList();
-          _isLoading = false;
-        });
-      }
-    }, onError: (e) {
-      debugPrint('Error listening to leaves: $e');
-      if (mounted) setState(() => _isLoading = false);
-    });
+        .listen(
+          (snapshot) {
+            if (mounted) {
+              setState(() {
+                _leaves = snapshot.docs
+                    .map((doc) => {'id': doc.id, ...doc.data()})
+                    .toList();
+                _isLoading = false;
+              });
+            }
+          },
+          onError: (e) {
+            debugPrint('Error listening to leaves: $e');
+            if (mounted) setState(() => _isLoading = false);
+          },
+        );
 
     // Listen to user document changes in real time
     _userSubscription?.cancel();
@@ -84,38 +87,56 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         .collection('users')
         .doc(user!.uid)
         .snapshots()
-        .listen((userDoc) {
-      if (userDoc.exists && mounted) {
-        setState(() {
-          final userData = userDoc.data();
-          final hasAnnual = userData?.containsKey('leaveBalanceAnnual') ?? false;
-          final hasSick = userData?.containsKey('leaveBalanceSick') ?? false;
-          final hasCasual = userData?.containsKey('leaveBalanceCasual') ?? false;
-          final hasEmergency = userData?.containsKey('leaveBalanceEmergency') ?? false;
+        .listen(
+          (userDoc) {
+            if (userDoc.exists && mounted) {
+              setState(() {
+                final userData = userDoc.data();
+                final hasAnnual =
+                    userData?.containsKey('leaveBalanceAnnual') ?? false;
+                final hasSick =
+                    userData?.containsKey('leaveBalanceSick') ?? false;
+                final hasCasual =
+                    userData?.containsKey('leaveBalanceCasual') ?? false;
+                final hasEmergency =
+                    userData?.containsKey('leaveBalanceEmergency') ?? false;
 
-          final annualBal = (userData?['leaveBalanceAnnual'] as num?)?.toInt() ?? 15;
-          final sickBal = (userData?['leaveBalanceSick'] as num?)?.toInt() ?? 10;
-          final casualBal = (userData?['leaveBalanceCasual'] as num?)?.toInt() ?? 7;
-          final emergencyBal = (userData?['leaveBalanceEmergency'] as num?)?.toInt() ?? 5;
+                final annualBal =
+                    (userData?['leaveBalanceAnnual'] as num?)?.toInt() ?? 15;
+                final sickBal =
+                    (userData?['leaveBalanceSick'] as num?)?.toInt() ?? 10;
+                final casualBal =
+                    (userData?['leaveBalanceCasual'] as num?)?.toInt() ?? 7;
+                final emergencyBal =
+                    (userData?['leaveBalanceEmergency'] as num?)?.toInt() ?? 5;
 
-          _leaveTypes[0]['balance'] = annualBal;
-          _leaveTypes[1]['balance'] = sickBal;
-          _leaveTypes[2]['balance'] = casualBal;
-          _leaveTypes[3]['balance'] = emergencyBal;
+                _leaveTypes[0]['balance'] = annualBal;
+                _leaveTypes[1]['balance'] = sickBal;
+                _leaveTypes[2]['balance'] = casualBal;
+                _leaveTypes[3]['balance'] = emergencyBal;
 
-          if (!hasAnnual || !hasSick || !hasCasual || !hasEmergency) {
-            FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-              'leaveBalanceAnnual': annualBal,
-              'leaveBalanceSick': sickBal,
-              'leaveBalanceCasual': casualBal,
-              'leaveBalanceEmergency': emergencyBal,
-            }).catchError((e) => debugPrint('Error initializing leave balances: $e'));
-          }
-        });
-      }
-    }, onError: (e) {
-      debugPrint('Error listening to user document: $e');
-    });
+                if (!hasAnnual || !hasSick || !hasCasual || !hasEmergency) {
+                  FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user!.uid)
+                      .update({
+                        'leaveBalanceAnnual': annualBal,
+                        'leaveBalanceSick': sickBal,
+                        'leaveBalanceCasual': casualBal,
+                        'leaveBalanceEmergency': emergencyBal,
+                      })
+                      .catchError(
+                        (e) =>
+                            debugPrint('Error initializing leave balances: $e'),
+                      );
+                }
+              });
+            }
+          },
+          onError: (e) {
+            debugPrint('Error listening to user document: $e');
+          },
+        );
   }
 
   Future<void> _applyLeave(StateSetter setModalState) async {
@@ -150,7 +171,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     if (days > availableBalance) {
       scaffoldMessenger.showSnackBar(
         SnackBar(
-          content: Text('Insufficient balance. You only have $availableBalance day(s) of $leaveTypeLabel left.'),
+          content: Text(
+            'Insufficient balance. You only have $availableBalance day(s) of $leaveTypeLabel left.',
+          ),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
         ),
@@ -198,7 +221,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
           await FirebaseFirestore.instance.collection('notifications').add({
             'userId': adminId,
             'title': 'New Leave Request',
-            'body': '$employeeName has requested $leaveTypeLabel leave for $days day(s).',
+            'body':
+                '$employeeName has requested $leaveTypeLabel leave for $days day(s).',
             'type': 'leave',
             'data': {'employeeId': user!.uid},
             'read': false,
@@ -210,7 +234,8 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
           await PushNotificationService.instance.sendPushNotification(
             recipientTokens: adminTokens,
             title: 'New Leave Request',
-            body: '$employeeName has requested $leaveTypeLabel leave for $days day(s).',
+            body:
+                '$employeeName has requested $leaveTypeLabel leave for $days day(s).',
           );
         }
       } catch (fcmErr) {
@@ -232,9 +257,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
     } catch (e) {
       debugPrint('Error applying leave: $e');
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) {
@@ -270,7 +293,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
           final bool isMobile = MediaQuery.of(context).size.width < 600;
-          final bool hasAnyBalance = _leaveTypes.any((t) => (t['balance'] as int) > 0);
+          final bool hasAnyBalance = _leaveTypes.any(
+            (t) => (t['balance'] as int) > 0,
+          );
 
           return Container(
             height: MediaQuery.of(context).size.height * 0.85,
@@ -366,10 +391,16 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                                 value: id,
                                 enabled: isEnabled,
                                 child: Text(
-                                  isEnabled ? '$label ($balance days left)' : '$label (0 days left - Unavailable)',
+                                  isEnabled
+                                      ? '$label ($balance days left)'
+                                      : '$label (0 days left - Unavailable)',
                                   style: TextStyle(
-                                    color: isEnabled ? const Color(0xFF1E293B) : Colors.grey.shade400,
-                                    fontWeight: isEnabled ? FontWeight.normal : FontWeight.w600,
+                                    color: isEnabled
+                                        ? const Color(0xFF1E293B)
+                                        : Colors.grey.shade400,
+                                    fontWeight: isEnabled
+                                        ? FontWeight.normal
+                                        : FontWeight.w600,
                                   ),
                                 ),
                               );

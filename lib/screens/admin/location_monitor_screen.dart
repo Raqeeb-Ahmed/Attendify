@@ -437,6 +437,7 @@ class _ActiveEmployeeTrackerViewState
                         isLessThanOrEqualTo: '${today}T23:59:59',
                       )
                       .orderBy('timestamp', descending: false)
+                      .limit(100)
                       .snapshots(),
                   builder: (context, locationsSnap) {
                     final allDocs = locationsSnap.data?.docs ?? [];

@@ -62,6 +62,7 @@ class _MyAssetsScreenState extends State<MyAssetsScreen> {
                           .collection('assets')
                           .where('employeeId', isEqualTo: currentUser.uid)
                           .where('status', isEqualTo: 'Assigned')
+                          .limit(30)
                           .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {

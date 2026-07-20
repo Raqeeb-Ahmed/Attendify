@@ -819,7 +819,7 @@ class _AssetsManagementScreenState extends State<AssetsManagementScreen>
     }
 
     return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
+      stream: query.limit(40).snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));

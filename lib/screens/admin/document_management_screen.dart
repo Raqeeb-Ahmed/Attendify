@@ -190,6 +190,18 @@ class _DocumentManagementScreenState extends State<DocumentManagementScreen> {
     );
   }
 
+  late Stream<QuerySnapshot> _docsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _docsStream = FirebaseFirestore.instance
+        .collection('documents')
+        .orderBy('createdAt', descending: true)
+        .limit(40)
+        .snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     final localIsMobile = MediaQuery.of(context).size.width < 768;
@@ -203,10 +215,7 @@ class _DocumentManagementScreenState extends State<DocumentManagementScreen> {
             _buildFilters(),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('documents')
-                    .orderBy('createdAt', descending: true)
-                    .snapshots(),
+                stream: _docsStream,
                 builder: (ctx, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const Center(

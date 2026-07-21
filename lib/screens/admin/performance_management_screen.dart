@@ -18,6 +18,27 @@ class PerformanceManagementScreen extends StatefulWidget {
 class _PerformanceManagementScreenState
     extends State<PerformanceManagementScreen> {
   String _searchQuery = '';
+  late Stream<QuerySnapshot> _usersStream;
+  late Stream<QuerySnapshot> _attendanceStream;
+  late Stream<QuerySnapshot> _warningStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _usersStream = FirebaseFirestore.instance
+        .collection('users')
+        .where('role', whereIn: const ['employee', 'manager'])
+        .snapshots();
+    _attendanceStream = FirebaseFirestore.instance
+        .collection('attendance')
+        .limit(200)
+        .snapshots();
+    _warningStream = FirebaseFirestore.instance
+        .collection('documents')
+        .where('type', isEqualTo: 'warning')
+        .limit(50)
+        .snapshots();
+  }
 
   int _calcScore(List<Map<String, dynamic>> attRecords, int warnings) {
     final present = attRecords.length;
@@ -190,21 +211,13 @@ class _PerformanceManagementScreenState
             _buildSearch(),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .where('role', whereIn: const ['employee', 'manager'])
-                    .snapshots(),
+                stream: _usersStream,
                 builder: (ctx, usersSnap) {
                   return StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('attendance')
-                        .snapshots(),
+                    stream: _attendanceStream,
                     builder: (ctx, attSnap) {
                       return StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('documents')
-                            .where('type', isEqualTo: 'warning')
-                            .snapshots(),
+                        stream: _warningStream,
                         builder: (ctx, warnSnap) {
                           if (usersSnap.connectionState ==
                               ConnectionState.waiting) {

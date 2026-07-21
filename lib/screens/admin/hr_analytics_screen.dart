@@ -16,6 +16,40 @@ class HRAnalyticsScreen extends StatefulWidget {
 }
 
 class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
+  late Stream<QuerySnapshot> _usersStream;
+  late Stream<QuerySnapshot> _attendanceStream;
+  late Stream<QuerySnapshot> _leavesStream;
+  late Stream<QuerySnapshot> _expensesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _usersStream = FirebaseFirestore.instance
+        .collection('users')
+        .where('role', whereIn: const ['employee', 'manager'])
+        .snapshots();
+    _attendanceStream = FirebaseFirestore.instance
+        .collection('attendance')
+        .where(
+          'date',
+          isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd').format(
+            DateTime.now().subtract(const Duration(days: 30)),
+          ),
+        )
+        .limit(300)
+        .snapshots();
+    _leavesStream = FirebaseFirestore.instance
+        .collection('leaves')
+        .where('status', isEqualTo: 'approved')
+        .limit(50)
+        .snapshots();
+    _expensesStream = FirebaseFirestore.instance
+        .collection('expenses')
+        .where('status', isEqualTo: 'approved')
+        .limit(50)
+        .snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     final localIsMobile = MediaQuery.of(context).size.width < 768;
@@ -28,36 +62,16 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
             _buildTopBar(isMobile, widget.onMenuPressed),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .where('role', whereIn: const ['employee', 'manager'])
-                    .snapshots(),
+                stream: _usersStream,
                 builder: (ctx, usersSnap) {
                   return StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('attendance')
-                        .where(
-                          'date',
-                          isGreaterThanOrEqualTo: DateFormat('yyyy-MM-dd')
-                              .format(
-                                DateTime.now().subtract(
-                                  const Duration(days: 30),
-                                ),
-                              ),
-                        )
-                        .snapshots(),
+                    stream: _attendanceStream,
                     builder: (ctx, attSnap) {
                       return StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('leaves')
-                            .where('status', isEqualTo: 'approved')
-                            .snapshots(),
+                        stream: _leavesStream,
                         builder: (ctx, leavesSnap) {
                           return StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('expenses')
-                                .where('status', isEqualTo: 'approved')
-                                .snapshots(),
+                            stream: _expensesStream,
                             builder: (ctx, expSnap) {
                               final totalEmp = usersSnap.data?.docs.length ?? 0;
                               final attDocs = attSnap.data?.docs ?? [];

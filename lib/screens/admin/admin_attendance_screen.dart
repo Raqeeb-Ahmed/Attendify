@@ -39,10 +39,25 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
   DateTime? _auditStartDate;
   DateTime? _auditEndDate;
 
+  late Stream<QuerySnapshot> _attendanceStream;
+  late Stream<QuerySnapshot> _usersStream;
+
   @override
   void initState() {
     super.initState();
     _selectedDate = widget.selectedDate;
+    _initStreams();
+  }
+
+  void _initStreams() {
+    _attendanceStream = FirebaseFirestore.instance
+        .collection('attendance')
+        .where('date', isEqualTo: _selectedDate)
+        .snapshots();
+    _usersStream = FirebaseFirestore.instance
+        .collection('users')
+        .where('role', whereIn: const ['employee', 'manager'])
+        .snapshots();
   }
 
   Future<void> _pickDate() async {
@@ -58,8 +73,15 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         child: child!,
       ),
     );
-    if (picked != null && mounted)
-      setState(() => _selectedDate = DateFormat('yyyy-MM-dd').format(picked));
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedDate = DateFormat('yyyy-MM-dd').format(picked);
+        _attendanceStream = FirebaseFirestore.instance
+            .collection('attendance')
+            .where('date', isEqualTo: _selectedDate)
+            .snapshots();
+      });
+    }
   }
 
   Widget _buildTabSelector(bool isMobile) {
@@ -161,15 +183,10 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                         _buildFilterRow(isMobile),
                         Expanded(
                           child: StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('attendance')
-                                .where('date', isEqualTo: _selectedDate)
-                                .snapshots(),
+                            stream: _attendanceStream,
                             builder: (context, attSnap) {
                               return StreamBuilder<QuerySnapshot>(
-                                stream: FirebaseFirestore.instance
-                                    .collection('users')
-                                    .snapshots(),
+                                stream: _usersStream,
                                 builder: (context, usersSnap) {
                                   final attDocs = attSnap.data?.docs ?? [];
                                   final userDocs = usersSnap.data?.docs ?? [];

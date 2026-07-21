@@ -191,12 +191,23 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     setState(() => _isSaving = false);
   }
 
+  late Stream<QuerySnapshot> _usersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _usersStream = FirebaseFirestore.instance
+        .collection('users')
+        .orderBy('name')
+        .snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     final localIsMobile = MediaQuery.of(context).size.width < 768;
     final isMobile = widget.isMobile || localIsMobile;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FC),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: Column(
           children: [
@@ -204,10 +215,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             _buildFilters(isMobile),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .orderBy('name')
-                    .snapshots(),
+                stream: _usersStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

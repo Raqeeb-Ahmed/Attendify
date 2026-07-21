@@ -72,13 +72,33 @@ class _EmployeeListPanelState extends State<EmployeeListPanel> {
     }).toList();
   }
 
+  late Stream<QuerySnapshot> _attendanceStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStream();
+  }
+
+  void _initStream() {
+    _attendanceStream = FirebaseFirestore.instance
+        .collection('attendance')
+        .where('date', isEqualTo: widget.selectedDate)
+        .snapshots();
+  }
+
+  @override
+  void didUpdateWidget(covariant EmployeeListPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedDate != widget.selectedDate) {
+      _initStream();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('attendance')
-          .where('date', isEqualTo: widget.selectedDate)
-          .snapshots(),
+      stream: _attendanceStream,
       builder: (context, attSnap) {
         final attDocs = attSnap.data?.docs ?? [];
         final attMap = <String, Map<String, dynamic>>{};

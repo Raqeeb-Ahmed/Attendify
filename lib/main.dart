@@ -121,47 +121,80 @@ class AuthWrapper extends StatelessWidget {
         }
 
         // Logged in - fetch role and redirect to appropriate dashboard
-        return StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .snapshots(),
-          builder: (context, userSnapshot) {
-            if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
+        return _AuthRoleWrapper(user: user);
+      },
+    );
+  }
+}
 
-            FlutterNativeSplash.remove();
+class _AuthRoleWrapper extends StatefulWidget {
+  final User user;
+  const _AuthRoleWrapper({required this.user});
 
-            if (userSnapshot.hasError ||
-                !userSnapshot.hasData ||
-                !userSnapshot.data!.exists) {
-              // If the user document does not exist, they are pending approval or profile setup.
-              // Once the LoginScreen finishes creating the document, the StreamBuilder will automatically rebuild.
-              return const PendingApprovalScreen();
-            }
+  @override
+  State<_AuthRoleWrapper> createState() => _AuthRoleWrapperState();
+}
 
-            final data = userSnapshot.data!.data() as Map<String, dynamic>?;
-            final role = data?['role'] ?? 'employee';
-            final approved = data?['approved'] ?? true;
+class _AuthRoleWrapperState extends State<_AuthRoleWrapper> {
+  late Stream<DocumentSnapshot> _userStream;
 
-            if (kIsWeb && role == 'employee') {
-              return const WebAccessDeniedScreen();
-            }
+  @override
+  void initState() {
+    super.initState();
+    _initStream();
+  }
 
-            if (role == 'admin' || role == 'manager') {
-              return const AdminDashboard();
-            } else {
-              if (approved) {
-                return const EmployeeDashboard();
-              } else {
-                return const PendingApprovalScreen();
-              }
-            }
-          },
-        );
+  void _initStream() {
+    _userStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.user.uid)
+        .snapshots();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AuthRoleWrapper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.uid != widget.user.uid) {
+      _initStream();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _userStream,
+      builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        FlutterNativeSplash.remove();
+
+        if (userSnapshot.hasError ||
+            !userSnapshot.hasData ||
+            !userSnapshot.data!.exists) {
+          return const PendingApprovalScreen();
+        }
+
+        final data = userSnapshot.data!.data() as Map<String, dynamic>?;
+        final role = data?['role'] ?? 'employee';
+        final approved = data?['approved'] ?? true;
+
+        if (kIsWeb && role == 'employee') {
+          return const WebAccessDeniedScreen();
+        }
+
+        if (role == 'admin' || role == 'manager') {
+          return const AdminDashboard();
+        } else {
+          if (approved) {
+            return const EmployeeDashboard();
+          } else {
+            return const PendingApprovalScreen();
+          }
+        }
       },
     );
   }

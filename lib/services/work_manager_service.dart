@@ -172,6 +172,17 @@ Future<void> _runLocationUpdate(
   // Check WiFi only if inside office geofence
   bool isWifiCheckIn = false;
 
+  // Enforce office working hours (9 AM - 6 PM) and Sunday OFF for auto check-in
+  if (now.weekday == DateTime.sunday) {
+    debugPrint('[WorkManager] Sunday is OFF. Aborting auto check-in.');
+    return;
+  }
+  final currentMins = now.hour * 60 + now.minute;
+  if (currentMins < 9 * 60 || currentMins >= 18 * 60) {
+    debugPrint('[WorkManager] Outside office hours (9 AM - 6 PM). Aborting auto check-in.');
+    return;
+  }
+
   // Use Firestore transaction for atomic check-in (prevents race conditions)
   bool didCheckIn = false;
   try {

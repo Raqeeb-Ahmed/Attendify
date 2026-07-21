@@ -124,6 +124,17 @@ class WiFiAutoCheckInService {
   Future<void> _checkWifiAndAutoCheckIn(List<String> officeWifiNames) async {
     if (_currentUid == null) return;
 
+    final now = DateTime.now();
+    if (now.weekday == DateTime.sunday) {
+      debugPrint("[WiFiAutoCheckInService] Sunday is OFF. Skipping auto check-in.");
+      return;
+    }
+    final currentMins = now.hour * 60 + now.minute;
+    if (currentMins < 9 * 60 || currentMins >= 18 * 60) {
+      debugPrint("[WiFiAutoCheckInService] Outside office hours (9 AM - 6 PM). Skipping auto check-in.");
+      return;
+    }
+
     if (_hasAutoCheckedIn) {
       debugPrint("[WiFiAutoCheckInService] Already auto checked in.");
       return;

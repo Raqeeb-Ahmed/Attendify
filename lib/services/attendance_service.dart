@@ -192,7 +192,13 @@ class AttendanceService {
       }
 
       final now = DateTime.now();
+      if (now.weekday == DateTime.sunday) {
+        throw AppException('Attendance is disabled on Sundays.');
+      }
       final currentMinutes = now.hour * 60 + now.minute;
+      if (currentMinutes < 9 * 60 || currentMinutes >= 18 * 60) {
+        throw AppException('Check-in is only allowed between 9:00 AM and 6:00 PM.');
+      }
 
       // Determine status: present (before 9:45) or late (after 9:45)
       String finalStatus = 'outside';
@@ -1191,9 +1197,14 @@ class AttendanceService {
       } catch (_) {}
     }
 
-    int currentInside = ((updates['insideTime'] ?? attData['insideTime'] ?? 0) as num).toInt();
-    int currentOutside = ((updates['outsideTime'] ?? attData['outsideTime'] ?? 0) as num).toInt();
-    int currentOffline = ((updates['offlineTime'] ?? attData['offlineTime'] ?? 0) as num).toInt();
+    int currentInside =
+        ((updates['insideTime'] ?? attData['insideTime'] ?? 0) as num).toInt();
+    int currentOutside =
+        ((updates['outsideTime'] ?? attData['outsideTime'] ?? 0) as num)
+            .toInt();
+    int currentOffline =
+        ((updates['offlineTime'] ?? attData['offlineTime'] ?? 0) as num)
+            .toInt();
 
     // Clamp metrics so they can never exceed max elapsed minutes since check-in
     currentInside = currentInside.clamp(0, maxElapsedMins);
@@ -1203,7 +1214,8 @@ class AttendanceService {
     updates['insideTime'] = currentInside;
     updates['outsideTime'] = currentOutside;
     updates['offlineTime'] = currentOffline;
-    updates['insideOfficeTime'] = (currentInside + currentOffline) * 60 * 1000; // ms
+    updates['insideOfficeTime'] =
+        (currentInside + currentOffline) * 60 * 1000; // ms
 
     if (alreadyCheckedOut) {
       updates['totalHours'] = _computeTotalHours(

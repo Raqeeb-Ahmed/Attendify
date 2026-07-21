@@ -183,8 +183,13 @@ class BackgroundLocationService {
         'online': isOnline,
       }, SetOptions(merge: true));
 
-      // AUTO CHECK-IN (AND Condition): If entered radius, connected to WiFi, and not checked in yet
-      if (isInsideRadius && !_autoCheckedIn) {
+      // AUTO CHECK-IN: Only between 9:00 AM and 6:00 PM, and not on Sunday
+      final nowDt = DateTime.now();
+      final isSunday = nowDt.weekday == DateTime.sunday;
+      final currentMins = nowDt.hour * 60 + nowDt.minute;
+      final isOfficeHours = !isSunday && currentMins >= 9 * 60 && currentMins < 18 * 60;
+
+      if (isInsideRadius && !_autoCheckedIn && isOfficeHours) {
         final isOnOfficeWifi = await WiFiAutoCheckInService().isConnectedToOfficeWifi(AppConfig.officeWifiNames);
         if (isOnOfficeWifi) {
           await _performAutoCheckIn(position.latitude, position.longitude);

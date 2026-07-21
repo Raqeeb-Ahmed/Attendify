@@ -64,11 +64,12 @@ class _LocationTaskHandler extends TaskHandler {
       final today =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      // Location permission check - REQUIRES "Always" for background tracking
+      // Location permission check (Foreground service allows both always and whileInUse)
       final permission = await Geolocator.checkPermission();
-      if (permission != LocationPermission.always) {
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
         debugPrint(
-          '[ForegroundTask] Location permission is not "Always". Skipping update.',
+          '[ForegroundTask] Location permission is denied. Skipping update.',
         );
         return;
       }
@@ -99,6 +100,37 @@ class _LocationTaskHandler extends TaskHandler {
       );
       final isInside = distance <= _radiusMeters;
       final status = isInside ? 'present' : 'outside';
+
+      // Auto Check-in Trigger (9 AM - 6 PM, Monday - Saturday)
+      final currentMins = now.hour * 60 + now.minute;
+      final isOfficeHours = now.weekday != DateTime.sunday &&
+          currentMins >= 9 * 60 &&
+          currentMins < 18 * 60;
+
+      if (isInside && isOfficeHours) {
+        try {
+          final attRef = db.collection('attendance').doc('${uid}_$today');
+          final attDoc = await attRef.get();
+          final hasCheckedIn =
+              attDoc.exists && (attDoc.data()?['checkInTime'] != null);
+
+          if (!hasCheckedIn) {
+            final dept =
+                await FlutterForegroundTask.getData<String>(key: 'department');
+            await AttendanceService().checkIn(
+              uid,
+              name,
+              dept ?? '',
+              email,
+            );
+            await FlutterForegroundTask.updateService(
+              notificationTitle: 'Auto Check-In Successful',
+              notificationText:
+                  'Checked in at office at ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+            );
+          }
+        } catch (_) {}
+      }
 
       final locationData = {
         'userId': uid,

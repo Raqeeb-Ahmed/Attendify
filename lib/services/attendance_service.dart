@@ -79,6 +79,7 @@ class AttendanceService {
   Future<Map<String, dynamic>?> fetchTodayAttendance(String userId) async {
     try {
       final attendanceId = getTodayAttendanceId(userId);
+      await checkAndForceAutoCheckIn(userId);
       await checkAndForceAutoCheckout(userId);
       final docSnap = await _db
           .collection('attendance')
@@ -467,6 +468,95 @@ class AttendanceService {
       }
     } catch (_) {}
     return updates;
+  }
+
+  /// Checks and forcefully performs lazy auto check-in if user is inside office during working hours (9 AM - 6 PM) but hasn't checked in yet today
+  Future<void> checkAndForceAutoCheckIn(
+    String userId, {
+    String? targetDate,
+  }) async {
+    try {
+      final now = DateTime.now();
+      // Block on Sunday
+      if (now.weekday == DateTime.sunday) return;
+
+      final currentMins = now.hour * 60 + now.minute;
+      // Only trigger lazy check-in between 9:00 AM and 6:00 PM
+      if (currentMins < 9 * 60 || currentMins >= 18 * 60) return;
+
+      final todayStr = targetDate ?? _formatDate(now);
+      final attendanceId = '${userId}_$todayStr';
+      final docRef = _db.collection('attendance').doc(attendanceId);
+
+      final docSnap = await docRef.get();
+      // If already checked in, nothing to do
+      if (docSnap.exists && docSnap.data()?['checkInTime'] != null) {
+        return;
+      }
+
+      // Check RTDB latest location or presence to verify if user is inside office geofence
+      bool isInsideOffice = false;
+      double? lat, lng, distance;
+
+      try {
+        final locSnap = await _rtdb.ref('locations/${userId}_latest').get();
+        if (locSnap.exists && locSnap.value != null) {
+          final data = Map<String, dynamic>.from(locSnap.value as Map);
+          if (data['insideRadius'] == true) {
+            isInsideOffice = true;
+            lat = (data['lat'] as num?)?.toDouble();
+            lng = (data['lng'] as num?)?.toDouble();
+            distance = (data['distanceFromOffice'] as num?)?.toDouble();
+          }
+        }
+      } catch (_) {}
+
+      if (!isInsideOffice) {
+        try {
+          final presSnap = await _rtdb.ref('presence/$userId').get();
+          if (presSnap.exists && presSnap.value != null) {
+            final data = Map<String, dynamic>.from(presSnap.value as Map);
+            if (data['online'] == true) {
+              isInsideOffice = true;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (isInsideOffice) {
+        // Fetch user metadata for record
+        final userSnap = await _db.collection('users').doc(userId).get();
+        final userData = userSnap.data() ?? {};
+        final userName = userData['name'] as String? ?? 'Employee';
+        final userEmail = userData['email'] as String? ?? '';
+        final dept = userData['department'] as String? ?? 'N/A';
+
+        // Check-in timestamp: set to 9:00 AM if checking in after 9 AM, or current time
+        final nineAM = DateTime(now.year, now.month, now.day, 9, 0);
+        final checkInDt = now.isAfter(nineAM) ? nineAM : now;
+        final checkInIso = checkInDt.toIso8601String();
+
+        await _processCheckInWithTransaction(
+          userId: userId,
+          userName: userName,
+          department: dept,
+          email: userEmail,
+          attendanceId: attendanceId,
+          isAtOffice: true,
+          ipAddress: '',
+          location: lat != null && lng != null
+              ? {'lat': lat, 'lng': lng, 'distanceFromOffice': distance ?? 0}
+              : null,
+          dateStr: todayStr,
+          nowIso: checkInIso,
+        );
+        debugPrint(
+          '[AttendanceService] Lazy Auto Check-In performed for $userId at $checkInIso',
+        );
+      }
+    } catch (e) {
+      debugPrint('[AttendanceService] Lazy Auto Check-In error: $e');
+    }
   }
 
   /// Checks and forcefully check out a specific user if it's past 6:00 PM

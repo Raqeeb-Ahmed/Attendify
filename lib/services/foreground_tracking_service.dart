@@ -26,6 +26,8 @@ class _LocationTaskHandler extends TaskHandler {
   static double? _lastLoggedLng;
   static DateTime? _lastHistoryWriteTime;
   static bool _checkedOutCached = false;
+  static bool _checkedInCached = false;
+  static String? _cachedTodayDate;
   static String? _lastNotifText;
 
   @override
@@ -64,6 +66,12 @@ class _LocationTaskHandler extends TaskHandler {
       final today =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
+      if (_cachedTodayDate != today) {
+        _cachedTodayDate = today;
+        _checkedInCached = false;
+        _checkedOutCached = false;
+      }
+
       // Location permission check (Foreground service allows both always and whileInUse)
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied ||
@@ -101,20 +109,22 @@ class _LocationTaskHandler extends TaskHandler {
       final isInside = distance <= _radiusMeters;
       final status = isInside ? 'present' : 'outside';
 
-      // Auto Check-in Trigger (9 AM - 6 PM, Monday - Saturday)
+      // Auto Check-in Trigger (9 AM - 6 PM, Monday - Saturday) — Zero reads if already checked in today
       final currentMins = now.hour * 60 + now.minute;
       final isOfficeHours = now.weekday != DateTime.sunday &&
           currentMins >= 9 * 60 &&
           currentMins < 18 * 60;
 
-      if (isInside && isOfficeHours) {
+      if (isInside && isOfficeHours && !_checkedInCached) {
         try {
           final attRef = db.collection('attendance').doc('${uid}_$today');
           final attDoc = await attRef.get();
           final hasCheckedIn =
               attDoc.exists && (attDoc.data()?['checkInTime'] != null);
 
-          if (!hasCheckedIn) {
+          if (hasCheckedIn) {
+            _checkedInCached = true;
+          } else {
             final dept =
                 await FlutterForegroundTask.getData<String>(key: 'department');
             await AttendanceService().checkIn(
@@ -123,6 +133,7 @@ class _LocationTaskHandler extends TaskHandler {
               dept ?? '',
               email,
             );
+            _checkedInCached = true;
             await FlutterForegroundTask.updateService(
               notificationTitle: 'Auto Check-In Successful',
               notificationText:

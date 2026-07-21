@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../../services/cache_service.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -60,6 +61,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
+      CacheService.instance.invalidate('expenses');
 
       if (mounted) {
         Navigator.pop(context);

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../../services/cache_service.dart';
 import '../../services/push_notification_service.dart';
 
 class LeaveManagementScreen extends StatefulWidget {
@@ -199,7 +200,9 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         'reason': _reasonController.text.trim(),
         'status': 'pending',
         'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
       });
+      CacheService.instance.invalidate('leaves');
 
       // Send push notification to all Admins
       try {

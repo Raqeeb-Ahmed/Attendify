@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import '../../utils/firebase_exception_handler.dart';
+import '../../services/cache_service.dart';
 import '../../services/push_notification_service.dart';
 
 class EmployeeManagementScreen extends StatefulWidget {
@@ -151,6 +154,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                             'allowances':
                                 double.tryParse(allowanceCtrl.text) ?? 0,
                           });
+                      CacheService.instance.invalidate('users');
 
                       setS(() => _isSaving = false);
 

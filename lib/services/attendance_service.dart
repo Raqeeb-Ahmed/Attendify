@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import '../utils/firebase_exception_handler.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'cache_service.dart';
 
 /// Unified Attendance Service - Matches Web App Schema
 /// Office hours: 9:45 AM - 5:45 PM
@@ -230,6 +231,7 @@ class AttendanceService {
       };
 
       transaction.set(docRef, data);
+      CacheService.instance.invalidate('attendance');
 
       // Store initial location in same transaction for consistency
       if (location != null) {

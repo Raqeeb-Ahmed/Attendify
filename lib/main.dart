@@ -11,6 +11,7 @@ import 'screens/employee/employee_dashboard.dart';
 import 'screens/login_screen.dart';
 import 'services/auth_service.dart';
 import 'services/push_notification_service.dart';
+import 'services/cache_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -42,6 +43,9 @@ Future<void> main() async {
   } else {
     await Firebase.initializeApp();
   }
+
+  // Initialize Cache-First Persistence Layer
+  CacheService.instance.initialize();
 
   // Set the background messaging handler early in main (only on non-web)
   if (!kIsWeb) {

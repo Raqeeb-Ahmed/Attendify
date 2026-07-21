@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../../services/cache_service.dart';
 
 class ExpenseManagementScreen extends StatefulWidget {
   final bool isMobile;
@@ -30,6 +31,7 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
         'status': status,
         'reviewedAt': DateTime.now().toIso8601String(),
       });
+      CacheService.instance.invalidate('expenses');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

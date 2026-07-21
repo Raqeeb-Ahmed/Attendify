@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../utils/firebase_exception_handler.dart';
 import '../../services/push_notification_service.dart';
+import '../../services/cache_service.dart';
 
 class LeaveManagementScreen extends StatefulWidget {
   final bool isMobile;
@@ -407,6 +408,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
         'status': status,
         'updatedAt': DateTime.now().toIso8601String(),
       });
+      CacheService.instance.invalidate('leaves');
 
       // Send push notification and save notification in database
       final leaveSnap = await FirebaseFirestore.instance

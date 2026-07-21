@@ -260,6 +260,14 @@ class AttendanceService {
 
   // ── Check Out ──
   Future<Map<String, dynamic>?> checkOut(String userId) async {
+    final now = DateTime.now();
+    final currentMins = now.hour * 60 + now.minute;
+    if (currentMins < 18 * 60) {
+      throw AppException(
+        'Manual Check-Out is disabled. Check-out is strictly automatic at 6:00 PM.',
+      );
+    }
+
     try {
       final attendanceId = getTodayAttendanceId(userId);
       final docRef = _db.collection('attendance').doc(attendanceId);

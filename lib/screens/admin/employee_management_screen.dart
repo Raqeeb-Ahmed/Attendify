@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../utils/firebase_exception_handler.dart';
 import '../../services/cache_service.dart';
+import '../../widgets/app_shimmer.dart';
 import '../../services/push_notification_service.dart';
 
 class EmployeeManagementScreen extends StatefulWidget {
@@ -222,11 +223,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                 stream: _usersStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF6366F1),
-                      ),
-                    );
+                    return AppShimmer.tableRows(count: 8);
                   }
                   final docs = snapshot.data?.docs ?? [];
                   final filtered = docs.where((doc) {

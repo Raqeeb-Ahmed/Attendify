@@ -11,7 +11,8 @@ class LocationPermissionService {
   static Future<LocationPermissionStatus> checkPermissionStatus() async {
     try {
       // First check if location services are enabled
-      final isLocationServiceEnabled = await Geolocator.isLocationServiceEnabled();
+      final isLocationServiceEnabled =
+          await Geolocator.isLocationServiceEnabled();
       if (!isLocationServiceEnabled) {
         return LocationPermissionStatus.serviceDisabled;
       }
@@ -59,7 +60,8 @@ class LocationPermissionService {
           await _showSettingsDialog(
             context,
             title: 'Location Permission Required',
-            message: 'This app requires location permission to track your attendance. Please enable it in settings.',
+            message:
+                'This app requires location permission to track your attendance. Please enable it in settings.',
           );
         }
         return LocationPermissionStatus.deniedForever;
@@ -68,7 +70,8 @@ class LocationPermissionService {
       // Step 3: If denied, try once more
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) {
           return permission == LocationPermission.deniedForever
               ? LocationPermissionStatus.deniedForever
               : LocationPermissionStatus.denied;
@@ -93,7 +96,8 @@ class LocationPermissionService {
         final isPrecise = await _isPreciseLocationEnabled();
         if (!isPrecise) {
           // Show dialog to enable precise location
-          if (!context.mounted) return LocationPermissionStatus.alwaysApproximate;
+          if (!context.mounted)
+            return LocationPermissionStatus.alwaysApproximate;
           final shouldGoToSettings = await _showPreciseLocationDialog(context);
           if (shouldGoToSettings) {
             await openLocationSettings();
@@ -184,7 +188,10 @@ class LocationPermissionService {
             SizedBox(height: 12),
             Text(
               'Please select "Allow all the time" in the next screen.',
-              style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                color: Colors.orange,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -298,7 +305,9 @@ class LocationPermissionService {
   }
 
   /// Show dialog to enable location services
-  static Future<void> _showEnableLocationServiceDialog(BuildContext context) async {
+  static Future<void> _showEnableLocationServiceDialog(
+    BuildContext context,
+  ) async {
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -350,7 +359,9 @@ class LocationPermissionService {
     try {
       await Geolocator.openAppSettings();
     } catch (e) {
-      debugPrint('[LocationPermissionService] Error opening location settings: $e');
+      debugPrint(
+        '[LocationPermissionService] Error opening location settings: $e',
+      );
     }
   }
 
@@ -385,12 +396,12 @@ class LocationPermissionService {
 
 /// Location permission status enum
 enum LocationPermissionStatus {
-  alwaysPrecise,      // ✅ Ideal - always allow + precise
-  alwaysApproximate,  // ⚠️ Partial - always allow but approximate
-  whileInUseOnly,     // ❌ Insufficient - only while using
-  denied,             // ❌ Denied
-  deniedForever,      // ❌ Denied permanently
-  serviceDisabled,    // ❌ Location services off
-  unknown,            // ❓ Unknown
-  error,              // ❌ Error checking
+  alwaysPrecise, // ✅ Ideal - always allow + precise
+  alwaysApproximate, // ⚠️ Partial - always allow but approximate
+  whileInUseOnly, // ❌ Insufficient - only while using
+  denied, // ❌ Denied
+  deniedForever, // ❌ Denied permanently
+  serviceDisabled, // ❌ Location services off
+  unknown, // ❓ Unknown
+  error, // ❌ Error checking
 }

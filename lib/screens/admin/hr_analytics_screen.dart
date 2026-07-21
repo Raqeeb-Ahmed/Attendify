@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../../widgets/app_shimmer.dart';
 
 class HRAnalyticsScreen extends StatefulWidget {
   final bool isMobile;
@@ -73,6 +74,20 @@ class _HRAnalyticsScreenState extends State<HRAnalyticsScreen> {
                           return StreamBuilder<QuerySnapshot>(
                             stream: _expensesStream,
                             builder: (ctx, expSnap) {
+                              if (usersSnap.connectionState ==
+                                      ConnectionState.waiting ||
+                                  attSnap.connectionState ==
+                                      ConnectionState.waiting ||
+                                  leavesSnap.connectionState ==
+                                      ConnectionState.waiting ||
+                                  expSnap.connectionState ==
+                                      ConnectionState.waiting) {
+                                return Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: AppShimmer.metricsGrid(count: 4),
+                                );
+                              }
+
                               final totalEmp = usersSnap.data?.docs.length ?? 0;
                               final attDocs = attSnap.data?.docs ?? [];
                               final leaveDocs = leavesSnap.data?.docs ?? [];

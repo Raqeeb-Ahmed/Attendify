@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../services/cache_service.dart';
+import '../../widgets/app_shimmer.dart';
 
 class ExpenseManagementScreen extends StatefulWidget {
   final bool isMobile;
@@ -86,7 +87,7 @@ class _ExpenseManagementScreenState extends State<ExpenseManagementScreen> {
 
 
                   if (snap.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)));
+                    return AppShimmer.cardList(count: 5);
                   }
                   final docs = snap.data?.docs ?? [];
                   if (docs.isEmpty) {

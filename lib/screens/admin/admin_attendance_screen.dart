@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../services/pdf_generator_service.dart';
+import '../../widgets/app_shimmer.dart';
 
 class AdminAttendanceScreen extends StatefulWidget {
   final String selectedDate;
@@ -188,6 +189,13 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                               return StreamBuilder<QuerySnapshot>(
                                 stream: _usersStream,
                                 builder: (context, usersSnap) {
+                                  if (attSnap.connectionState ==
+                                          ConnectionState.waiting ||
+                                      usersSnap.connectionState ==
+                                          ConnectionState.waiting) {
+                                    return AppShimmer.tableRows(count: 8);
+                                  }
+
                                   final attDocs = attSnap.data?.docs ?? [];
                                   final userDocs = usersSnap.data?.docs ?? [];
 
